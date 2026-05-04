@@ -84,6 +84,7 @@ export default function AdminNavbar({ content }) {
     { name: 'Billing', path: '/admin/billing', icon: <AssignmentIcon /> },
     { name: 'Payments', path: '/admin/payments', icon: <PaymentIcon /> },
     { name: 'Reports', path: '/admin/reports', icon: <BarChartIcon /> },
+    { name: 'Audit', path: '/admin/audit', icon: <SettingsIcon /> },
     { name: 'Settings', path: '/admin/settings', icon: <SettingsIcon /> },
   ];
 

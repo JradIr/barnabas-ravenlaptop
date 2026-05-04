@@ -14,6 +14,7 @@ router.register('payments', PaymentViewSet, basename='payments')
 router.register('staff', StaffViewSet, basename='staff')
 router.register('admin', AdminViewSet, basename='admin')
 router.register('notifications', NotificationViewSet, basename='notifications')
+router.register('audit-logs', AuditLogViewSet, basename='audit-logs')
 
 notification_preference_urls = [
     path('notification-preferences/', NotificationPreferenceViewSet.as_view({

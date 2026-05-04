@@ -10,10 +10,6 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import LocalHospitalIcon from '@mui/icons-material/LocalHospital'
 import PeopleIcon from '@mui/icons-material/People'
 import StarIcon from '@mui/icons-material/Star'
-import PhoneIcon from '@mui/icons-material/Phone'
-import EmailIcon from '@mui/icons-material/Email'
-import LocationOnIcon from '@mui/icons-material/LocationOn'
-import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday'
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
@@ -24,12 +20,11 @@ const Home = () => {
   const [loading, setLoading] = useState(true)
   const [showScrollTop, setShowScrollTop] = useState(false)
   const navigate = useNavigate()
-  
+
   // Refs for animated sections
   const featuresRef = useRef(null)
   const servicesRef = useRef(null)
   const aboutRef = useRef(null)
-  const testimonialsRef = useRef(null)
 
   const GetData = () => {
     AxiosInstance.get('users/')
@@ -104,19 +99,8 @@ const Home = () => {
     }
   ]
 
-  const renderedData = useMemo(() => {
-    return myData.slice(0, 3).map((item, index) => (
-      <Box key={index} className="testimonial-card fade-up">
-        <StarIcon className="star-icon" />
-        <Typography variant="body1" sx={{ mb: 1 }}>"{item.email.split('@')[0]} says: Great experience!"</Typography>
-        <Typography variant="caption" color="textSecondary">- Patient Review</Typography>
-      </Box>
-    ))
-  }, [myData])
-
   return (
     <>
-
 
       {/* Scroll to Top Button */}
       <Fab 
@@ -138,7 +122,7 @@ const Home = () => {
             </div>
             
             <Typography variant="h1" className="hero-title animate-title">
-              Welcome to Barnabas Dental Clinic
+              Barnabas Dental Clinic
             </Typography>
             
             <Typography variant="h5" className="hero-subtitle animate-subtitle">
@@ -163,21 +147,6 @@ const Home = () => {
                 Our Services
               </Button>
             </div>
-            
-            <div className="hero-stats animate-stats">
-              <div className="hero-stat">
-                <Typography variant="h3" className="stat-number">15+</Typography>
-                <Typography variant="body2">Years Experience</Typography>
-              </div>
-              <div className="hero-stat">
-                <Typography variant="h3" className="stat-number">10k+</Typography>
-                <Typography variant="body2">Happy Patients</Typography>
-              </div>
-              <div className="hero-stat">
-                <Typography variant="h3" className="stat-number">100%</Typography>
-                <Typography variant="body2">Satisfaction</Typography>
-              </div>
-            </div>
           </Box>
         </Container>
         
@@ -193,12 +162,15 @@ const Home = () => {
       {/* Features Section */}
       <Box className="section features-section" ref={featuresRef}>
         <Container maxWidth="lg">
-          <Typography variant="h3" className="section-title fade-up">
+          <Typography variant="h3" className="section-title fade-left">
             Why Choose Us
+          </Typography>
+          <Typography variant="body1" className="section-subtitle fade-left" style={{ animationDelay: '0.05s' }}>
+            Experience dentistry at its finest with our modern approach and patient-first philosophy
           </Typography>
           <Grid container spacing={4} className="features-grid">
             <Grid item xs={12} md={4}>
-              <Box className="feature-card fade-up" style={{ animationDelay: '0.1s' }}>
+              <Box className="feature-card fade-left" style={{ animationDelay: '0.1s' }}>
                 <LocalHospitalIcon className="feature-icon" />
                 <Typography variant="h5" className="feature-title">Modern Technology</Typography>
                 <Typography className="feature-description">
@@ -207,7 +179,7 @@ const Home = () => {
               </Box>
             </Grid>
             <Grid item xs={12} md={4}>
-              <Box className="feature-card fade-up" style={{ animationDelay: '0.2s' }}>
+              <Box className="feature-card fade-left" style={{ animationDelay: '0.2s' }}>
                 <PeopleIcon className="feature-icon" />
                 <Typography variant="h5" className="feature-title">Expert Team</Typography>
                 <Typography className="feature-description">
@@ -216,7 +188,7 @@ const Home = () => {
               </Box>
             </Grid>
             <Grid item xs={12} md={4}>
-              <Box className="feature-card fade-up" style={{ animationDelay: '0.3s' }}>
+              <Box className="feature-card fade-left" style={{ animationDelay: '0.3s' }}>
                 <CheckCircleIcon className="feature-icon" />
                 <Typography variant="h5" className="feature-title">Quality Guaranteed</Typography>
                 <Typography className="feature-description">
@@ -231,12 +203,18 @@ const Home = () => {
       {/* Services Section */}
       <Box className="section services-section" ref={servicesRef}>
         <Container maxWidth="lg">
-          <Typography variant="h3" className="section-title fade-up">
-            Our Services
-          </Typography>
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={4}>
-              <Box className="service-card scale-in">
+          <Box sx={{ mb: 6, mt: 0 }}>
+            <Typography variant="h3" className="section-title fade-right">
+              Our Services
+            </Typography>
+            <Typography variant="body1" className="section-subtitle fade-right" style={{ animationDelay: '0.05s' }}>
+              Comprehensive dental care tailored to your unique needs
+            </Typography>
+          </Box>
+          
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <Box sx={{ width: '100%', maxWidth: '600px', mb: 4 }}>
+              <Box className="service-card fade-right" style={{ animationDelay: '0.1s' }}>
                 <div className="service-image">
                   <img src="https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?w=400" alt="General Dentistry" />
                   <div className="service-overlay">
@@ -246,18 +224,21 @@ const Home = () => {
                 <Box className="service-content">
                   <Typography variant="h5">General Dentistry</Typography>
                   <Typography>Routine check-ups, cleanings, and preventive care to keep your smile healthy.</Typography>
-                  <Button 
-                    className="learn-more" 
-                    onClick={() => navigate('/services')}
-                    endIcon={<ArrowForwardIcon />}
-                  >
-                    Learn More
-                  </Button>
+                  <div className="learn-more-wrapper">
+                    <Button 
+                      className="learn-more" 
+                      onClick={() => navigate('/services')}
+                      endIcon={<ArrowForwardIcon />}
+                    >
+                      Learn More
+                    </Button>
+                  </div>
                 </Box>
               </Box>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Box className="service-card scale-in" style={{ animationDelay: '0.15s' }}>
+            </Box>
+            
+            <Box sx={{ width: '100%', maxWidth: '600px', mb: 4 }}>
+              <Box className="service-card fade-right" style={{ animationDelay: '0.2s' }}>
                 <div className="service-image">
                   <img src="https://images.unsplash.com/photo-1606811841689-23dfddce3e95?w=400" alt="Cosmetic Dentistry" />
                   <div className="service-overlay">
@@ -267,18 +248,21 @@ const Home = () => {
                 <Box className="service-content">
                   <Typography variant="h5">Cosmetic Dentistry</Typography>
                   <Typography>Whitening, veneers, and smile makeovers to boost your confidence.</Typography>
-                  <Button 
-                    className="learn-more" 
-                    onClick={() => navigate('/services')}
-                    endIcon={<ArrowForwardIcon />}
-                  >
-                    Learn More
-                  </Button>
+                  <div className="learn-more-wrapper">
+                    <Button 
+                      className="learn-more" 
+                      onClick={() => navigate('/services')}
+                      endIcon={<ArrowForwardIcon />}
+                    >
+                      Learn More
+                    </Button>
+                  </div>
                 </Box>
               </Box>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Box className="service-card scale-in" style={{ animationDelay: '0.3s' }}>
+            </Box>
+            
+            <Box sx={{ width: '100%', maxWidth: '600px' }}>
+              <Box className="service-card fade-right" style={{ animationDelay: '0.3s' }}>
                 <div className="service-image">
                   <img src="https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=400" alt="Orthodontics" />
                   <div className="service-overlay">
@@ -288,107 +272,78 @@ const Home = () => {
                 <Box className="service-content">
                   <Typography variant="h5">Orthodontics</Typography>
                   <Typography>Braces and aligners designed to give you a straight, beautiful smile.</Typography>
-                  <Button 
-                    className="learn-more" 
-                    onClick={() => navigate('/services')}
-                    endIcon={<ArrowForwardIcon />}
-                  >
-                    Learn More
-                  </Button>
+                  <div className="learn-more-wrapper">
+                    <Button 
+                      className="learn-more" 
+                      onClick={() => navigate('/services')}
+                      endIcon={<ArrowForwardIcon />}
+                    >
+                      Learn More
+                    </Button>
+                  </div>
                 </Box>
               </Box>
-            </Grid>
-          </Grid>
+            </Box>
+          </Box>
         </Container>
       </Box>
 
-      {/* About Section with Stats */}
+      {/* About Section */}
       <Box className="section about-section" ref={aboutRef}>
         <Container maxWidth="lg">
-          <Grid container spacing={4} alignItems="center">
-            <Grid item xs={12} md={6}>
-              <Typography variant="h3" className="section-title fade-left">
-                About Barnabas Dental
-              </Typography>
-              <Typography variant="body1" paragraph className="fade-left" style={{ animationDelay: '0.1s' }}>
+          <Box sx={{ mb: 6, textAlign: 'center' }}>
+            <Typography variant="h3" className="section-title fade-up">
+              About Barnabas Dental
+            </Typography>
+          </Box>
+          
+          <Box className="about-content-wrapper">
+            <Box className="about-paragraph about-paragraph-left fade-left">
+              <Typography variant="body1">
                 Founded in 2005, Barnabas Dental Clinic has been serving the community with excellence in dental care. 
                 Our philosophy is simple: every patient deserves personalized treatment, a comfortable environment, 
                 and a smile they can be proud of.
               </Typography>
-              <Typography variant="body1" paragraph className="fade-left" style={{ animationDelay: '0.2s' }}>
+            </Box>
+            
+            <Box className="about-paragraph about-paragraph-right fade-left">
+              <Typography variant="body1">
                 With state-of-the-art equipment and a team that truly cares, we are here to make your dental journey 
                 stress-free and rewarding. We believe in educating our patients and involving them in their treatment decisions.
               </Typography>
-              <Button 
-                variant="outlined" 
-                className="about-button fade-left"
-                style={{ animationDelay: '0.3s' }}
-                onClick={() => navigate('/about')}
-              >
-                Learn More About Us
-              </Button>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <img 
-                src="https://images.unsplash.com/photo-1629909613654-28e377c37b1a?w=600" 
-                alt="Dental Clinic Interior" 
-                className="about-image fade-right"
-              />
-            </Grid>
-          </Grid>
+            </Box>
+          </Box>
+          
+          <img 
+            src="https://images.unsplash.com/photo-1629909613654-28e377c37b1a?w=600" 
+            alt="Dental Clinic Interior" 
+            className="about-image scale-in"
+          />
+          
+          <Button 
+            variant="outlined" 
+            className="about-button fade-up"
+            onClick={() => navigate('/about')}
+          >
+            Learn More About Us
+          </Button>
         </Container>
       </Box>
 
-      {/* Testimonials Section */}
-      <Box className="section testimonials-section" ref={testimonialsRef}>
-        <Container maxWidth="lg">
-          <Typography variant="h3" className="section-title fade-up">
-            What Our Patients Say
-          </Typography>
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={4}>
-              <Box className="testimonial-card fade-up" style={{ animationDelay: '0.1s' }}>
-                <StarIcon className="star-icon" />
-                <Typography variant="body1">
-                  "The best dental experience I've ever had! The staff is so friendly and professional."
-                </Typography>
-                <Typography variant="subtitle2" className="patient-name">- Sarah Johnson</Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Box className="testimonial-card fade-up" style={{ animationDelay: '0.2s' }}>
-                <StarIcon className="star-icon" />
-                <Typography variant="body1">
-                  "State-of-the-art facility and pain-free procedures. Highly recommend Barnabas Dental!"
-                </Typography>
-                <Typography variant="subtitle2" className="patient-name">- Michael Chen</Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Box className="testimonial-card fade-up" style={{ animationDelay: '0.3s' }}>
-                <StarIcon className="star-icon" />
-                <Typography variant="body1">
-                  "Finally found a dentist I trust. They truly care about their patients."
-                </Typography>
-                <Typography variant="subtitle2" className="patient-name">- Emily Rodriguez</Typography>
-              </Box>
-            </Grid>
-          </Grid>
-          {renderedData}
-        </Container>
-      </Box>
-
-      {/* FAQ Section - Improved with Teal Colors */}
+      {/* FAQ Section */}
       <Box className="section faq-section">
         <Container maxWidth="lg">
           <Typography variant="h3" className="section-title fade-up">
             Frequently Asked Questions
           </Typography>
+          <Typography variant="body1" className="section-subtitle fade-up" style={{ animationDelay: '0.05s' }}>
+            Find answers to common questions about our dental practice
+          </Typography>
           <Box className="faq-container">
             <Grid container spacing={3}>
               {faqs.map((faq, index) => (
                 <Grid item xs={12} md={6} key={index}>
-                  <Accordion className={`faq-item fade-up ${index % 2 === 0 ? 'faq-left' : 'faq-right'}`} style={{ animationDelay: `${index * 0.1}s` }}>
+                  <Accordion className="faq-item fade-up" style={{ animationDelay: `${index * 0.1}s` }}>
                     <AccordionSummary expandIcon={<ExpandMoreIcon className="faq-expand-icon" />}>
                       <Typography variant="h6" className="faq-question">
                         {faq.question}
@@ -407,21 +362,21 @@ const Home = () => {
         </Container>
       </Box>
 
-      {/* Contact & Appointment CTA */}
+      {/* CTA Section */}
       <Box className="cta-section">
         <Container maxWidth="lg">
-          <Grid container spacing={3} alignItems="center">
-            <Grid item xs={12} md={8}>
+          <Grid container spacing={3} alignItems="center" justifyContent="center">
+            <Grid item xs={12} md={8} sx={{ textAlign: 'center' }}>
               <Typography variant="h4" className="fade-left">Ready for a healthier smile?</Typography>
               <Typography variant="body1" className="fade-left" style={{ animationDelay: '0.1s' }}>
                 Book your appointment today and experience exceptional dental care.
               </Typography>
             </Grid>
-            <Grid item xs={12} md={4} sx={{ textAlign: { xs: 'left', md: 'right' } }}>
+            <Grid item xs={12} md={4} sx={{ textAlign: 'center' }}>
               <Button 
                 variant="contained" 
                 className="cta-button pulse-animation"
-                onClick={() => navigate('/calendar/')}
+                onClick={() => navigate('/calendar')}
                 startIcon={<CalendarTodayIcon />}
               >
                 Book Appointment Now
@@ -431,7 +386,6 @@ const Home = () => {
         </Container>
       </Box>
 
-    
     </>
   )
 }

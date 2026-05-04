@@ -161,7 +161,6 @@ class Appointment(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.date} {self.time} ({self.status})"
 
-
 class Service(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField()

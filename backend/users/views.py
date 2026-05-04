@@ -11,6 +11,7 @@ from rest_framework.exceptions import PermissionDenied
 from knox.models import AuthToken
 from django.core.mail import send_mail
 from django.conf import settings
+from .audit_mixins import AuditLogMixin
 import asyncio
 
 from .models import *
@@ -96,7 +97,7 @@ class AdminLoginViewset(viewsets.ViewSet):
             return Response(serializer.errors, status=400)
 
 
-class UserViewset(viewsets.ViewSet):
+class UserViewset(viewsets.ViewSet, AuditLogMixin):
     permission_classes = [permissions.IsAuthenticated]
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
@@ -104,7 +105,32 @@ class UserViewset(viewsets.ViewSet):
     def list(self, request):
         queryset = User.objects.all()
         serializer = self.serializer_class(queryset, many=True)
+        # Log view action for admins
+        if request.user.is_superuser or request.user.is_staff:
+            self.log_admin_action(request, 'view', 'User', None, {'action': 'list_users'})
         return Response(serializer.data)
+    
+    def retrieve(self, request, pk=None):
+        user = User.objects.get(id=pk)
+        serializer = self.serializer_class(user)
+        if request.user.is_superuser or request.user.is_staff:
+            self.log_admin_action(request, 'view', 'User', pk, {'action': 'view_user'})
+        return Response(serializer.data)
+    
+    def update(self, request, pk=None):
+        user = User.objects.get(id=pk)
+        old_data = {
+            'role': user.role,
+            'is_active': user.is_active,
+            'is_staff': user.is_staff,
+        }
+        serializer = self.serializer_class(user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            if request.user.is_superuser or request.user.is_staff:
+                self.log_update(request, user, old_data, 'User')
+            return Response(serializer.data)
+        return Response(serializer.errors, status=400)
 
 
 class PatientRecordViewSet(viewsets.ModelViewSet):
@@ -142,7 +168,7 @@ class PatientRecordViewSet(viewsets.ModelViewSet):
         return Response(self.get_serializer(record).data)
 
 
-class AppointmentViewSet(viewsets.ModelViewSet):
+class AppointmentViewSet(viewsets.ModelViewSet, AuditLogMixin):
     serializer_class = AppointmentSerializer
     permission_classes = [IsAuthenticated]
     queryset = Appointment.objects.all()
@@ -150,27 +176,40 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         
-        if user.is_superuser or user.role == 'admin':
-            queryset = Appointment.objects.all().select_related('user', 'dentist')
-        elif user.is_staff:
-            queryset = Appointment.objects.all().select_related('user', 'dentist')
-        else:
-            queryset = Appointment.objects.filter(user=user)
+        # CRITICAL FIX: More comprehensive admin/staff check
+        # Check both is_superuser, is_staff, AND role field
+        is_admin_or_staff = (
+            user.is_superuser or 
+            user.is_staff or 
+            getattr(user, 'role', '') == 'admin' or
+            getattr(user, 'role', '') == 'staff'
+        )
         
-        # Apply filters
+        if is_admin_or_staff:
+            # ADMIN/STAFF - Get ALL appointments from ALL users
+            queryset = Appointment.objects.all().select_related('user', 'dentist')
+            print(f"[DEBUG] Admin/Staff query - total appointments: {queryset.count()}")
+        else:
+            # PATIENT - Get only their own appointments
+            queryset = Appointment.objects.filter(user=user).select_related('user', 'dentist')
+            print(f"[DEBUG] Patient query - appointments for {user.username}: {queryset.count()}")
+        
+        # Apply filters (only if they exist in request)
         status_filter = self.request.query_params.get('status', None)
         if status_filter:
             queryset = queryset.filter(status=status_filter)
+            print(f"[DEBUG] After status filter '{status_filter}': {queryset.count()}")
         
         start_date = self.request.query_params.get('start_date', None)
-        end_date = self.request.query_params.get('end_date', None)
         if start_date:
             queryset = queryset.filter(date__gte=start_date)
+        
+        end_date = self.request.query_params.get('end_date', None)
         if end_date:
             queryset = queryset.filter(date__lte=end_date)
         
         user_id = self.request.query_params.get('user_id', None)
-        if user_id and (user.is_superuser or user.is_staff):
+        if user_id and is_admin_or_staff:
             queryset = queryset.filter(user_id=user_id)
         
         return queryset.order_by('date', 'time')
@@ -554,7 +593,120 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             'position': position,
             'waitlist_id': waitlist_entry.id
         })
-
+    
+    # ========== ADMIN ENDPOINTS FOR FRONTEND ==========
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def all_for_admin(self, request):
+        """Get all appointments for admin (with filters)"""
+        # More robust permission check
+        is_admin_or_staff = (
+            request.user.is_superuser or 
+            request.user.is_staff or 
+            getattr(request.user, 'role', '') == 'admin' or
+            getattr(request.user, 'role', '') == 'staff'
+        )
+        
+        if not is_admin_or_staff:
+            raise PermissionDenied("Access denied")
+        
+        status_filter = request.query_params.get('status', None)
+        queryset = Appointment.objects.all().select_related('user', 'dentist')
+        
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        # Apply date filters
+        start_date = request.query_params.get('start_date', None)
+        if start_date:
+            queryset = queryset.filter(date__gte=start_date)
+        
+        end_date = request.query_params.get('end_date', None)
+        if end_date:
+            queryset = queryset.filter(date__lte=end_date)
+        
+        print(f"[DEBUG] all_for_admin - returning {queryset.count()} appointments")
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def pending(self, request):
+        """Get all pending appointments for admin confirmation"""
+        is_admin_or_staff = (
+            request.user.is_superuser or 
+            request.user.is_staff or 
+            getattr(request.user, 'role', '') == 'admin' or
+            getattr(request.user, 'role', '') == 'staff'
+        )
+        
+        if not is_admin_or_staff:
+            raise PermissionDenied("Access denied")
+        
+        queryset = Appointment.objects.filter(status='pending').select_related('user', 'dentist').order_by('date', 'time')
+        print(f"[DEBUG] pending - returning {queryset.count()} appointments")
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def confirmed(self, request):
+        """Get all confirmed appointments"""
+        if not (request.user.is_superuser or request.user.is_staff):
+            raise PermissionDenied("Access denied")
+        
+        queryset = Appointment.objects.filter(status='confirmed').select_related('user', 'dentist').order_by('date', 'time')
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def completed(self, request):
+        """Get all completed appointments"""
+        if not (request.user.is_superuser or request.user.is_staff):
+            raise PermissionDenied("Access denied")
+        
+        queryset = Appointment.objects.filter(status='completed').select_related('user', 'dentist').order_by('-date', '-time')
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def cancelled(self, request):
+        """Get all cancelled appointments"""
+        if not (request.user.is_superuser or request.user.is_staff):
+            raise PermissionDenied("Access denied")
+        
+        queryset = Appointment.objects.filter(status='cancelled').select_related('user', 'dentist').order_by('-date', '-time')
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    def partial_update(self, request, *args, **kwargs):
+        """Override partial_update to log admin status changes"""
+        instance = self.get_object()
+        old_status = instance.status
+        
+        # Check if this is an admin action (changing status)
+        is_admin_action = (request.user.is_superuser or request.user.is_staff) and \
+                          request.data.get('status') and \
+                          request.data.get('status') != old_status
+        
+        response = super().partial_update(request, *args, **kwargs)
+        
+        if is_admin_action and response.status_code == 200:
+            # Log the status change
+            changes = {
+                'status': {
+                    'from': old_status,
+                    'to': request.data.get('status')
+                }
+            }
+            self.log_admin_action(
+                request, 
+                'update', 
+                'Appointment', 
+                instance.id, 
+                changes
+            )
+        
+        return response
 
 class InvoiceViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
@@ -716,6 +868,7 @@ class AdminViewSet(viewsets.ViewSet):
         """Get comprehensive dashboard statistics"""
         from django.db.models import Sum, Count
         from datetime import timedelta
+        self.log_admin_action(request, 'view', 'Dashboard', None, {'action': 'view_dashboard'})
         
         today = timezone.now().date()
         this_month_start = today.replace(day=1)
@@ -906,3 +1059,53 @@ class NotificationPreferenceViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['put', 'patch'])
     def update(self, request):
         return self.update_preferences(request)    
+    
+class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for viewing audit logs (admin only)"""
+    permission_classes = [IsAuthenticated]
+    serializer_class = AuditLogSerializer
+    queryset = AuditLog.objects.all()
+    
+    def get_queryset(self):
+        user = self.request.user
+        # Only admins can view audit logs
+        if not (user.is_superuser or user.is_staff):
+            raise PermissionDenied("Access denied")
+        
+        queryset = AuditLog.objects.all().select_related('user').order_by('-timestamp')
+        
+        # Filter by user
+        user_id = self.request.query_params.get('user_id')
+        if user_id:
+            queryset = queryset.filter(user_id=user_id)
+        
+        # Filter by action
+        action = self.request.query_params.get('action')
+        if action:
+            queryset = queryset.filter(action=action)
+        
+        # Filter by model
+        model_name = self.request.query_params.get('model_name')
+        if model_name:
+            queryset = queryset.filter(model_name=model_name)
+        
+        # Date range filter
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        if start_date:
+            queryset = queryset.filter(timestamp__date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(timestamp__date__lte=end_date)
+        
+        return queryset
+    
+    @action(detail=False, methods=['get'])
+    def my_actions(self, request):
+        """Get actions performed by the current admin"""
+        queryset = AuditLog.objects.filter(user=request.user).order_by('-timestamp')
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)

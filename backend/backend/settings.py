@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'users',
     'django_celery_beat',
+    'auditlog',
 ]
 
 MIDDLEWARE = [

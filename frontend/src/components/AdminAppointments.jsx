@@ -1,3 +1,4 @@
+// src/pages/admin/AdminAppointments.jsx
 import React, { useEffect, useState } from "react";
 import AxiosInstance from "./AxiosInstance";
 import {
@@ -31,38 +32,35 @@ export default function AdminAppointments() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
+  // Fetch appointments based on selected tab
   const fetchAppointments = async () => {
     setLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem('token');
-      console.log("Token:", token ? "Exists" : "Missing");
+      let endpoint = "appointments/";
+      const statusMap = { 1: 'pending', 2: 'confirmed', 3: 'completed', 4: 'cancelled' };
+      const selectedStatus = statusMap[tabValue];
       
-      const { data } = await AxiosInstance.get("appointments/");
-      console.log("Raw API Response:", data);
-      console.log("Number of appointments:", data.length);
+      if (selectedStatus) {
+        // Fetch specific status from dedicated endpoint
+        endpoint = `appointments/${selectedStatus}/`;
+      } else {
+        // For "All" tab, fetch from all_for_admin endpoint
+        endpoint = "appointments/all_for_admin/";
+      }
       
-      // Log each appointment's status
-      data.forEach(app => {
-        console.log(`Appointment ${app.id}: Status=${app.status}, User=${app.user_username}, Date=${app.date}`);
+      const { data } = await AxiosInstance.get(endpoint);
+      const appointmentsArray = Array.isArray(data) ? data : (data.results || []);
+      
+      const sorted = [...appointmentsArray].sort((a, b) => {
+        const dateCompare = new Date(b.date) - new Date(a.date);
+        if (dateCompare !== 0) return dateCompare;
+        return (b.time || '').localeCompare(a.time || '');
       });
       
-      if (Array.isArray(data)) {
-        const sorted = [...data].sort((a, b) => {
-          const dateCompare = new Date(b.date) - new Date(a.date);
-          if (dateCompare !== 0) return dateCompare;
-          return (b.time || '').localeCompare(a.time || '');
-        });
-        setAppointments(sorted);
-      } else {
-        setAppointments([]);
-      }
+      setAppointments(sorted);
     } catch (error) {
-      console.error("Fetch error details:", error);
-      console.error("Error response:", error.response);
-      console.error("Error status:", error.response?.status);
-      console.error("Error data:", error.response?.data);
-      
+      console.error("Fetch error:", error);
       const errorMsg = error.response?.status === 401 ? "Please login again" : 
                        error.response?.status === 403 ? "You don't have permission to view appointments" :
                        error.response?.status === 500 ? "Server error. Please try again later." :
@@ -78,7 +76,7 @@ export default function AdminAppointments() {
     fetchAppointments(); 
     const interval = setInterval(fetchAppointments, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [tabValue]); // Re-fetch when tab changes
 
   const showToast = (text, type = "success") => {
     setToast({ open: true, text, type });
@@ -129,35 +127,6 @@ export default function AdminAppointments() {
     }
   };
 
-  const getFilteredApps = () => {
-    if (tabValue === 0) return appointments;
-    const statusMap = { 
-      1: 'pending', 
-      2: 'confirmed', 
-      3: 'completed', 
-      4: 'cancelled' 
-    };
-    return appointments.filter(a => a.status === statusMap[tabValue]);
-  };
-
-  const counts = {
-    total: appointments.length,
-    pending: appointments.filter(a => a?.status === 'pending').length,
-    confirmed: appointments.filter(a => a?.status === 'confirmed').length,
-    completed: appointments.filter(a => a?.status === 'completed').length,
-    cancelled: appointments.filter(a => a?.status === 'cancelled').length
-  };
-
-  const stats = [
-    { label: 'Total', value: counts.total, icon: <EventNote />, tab: 0, color: '#2ca6a4' },
-    { label: 'Pending', value: counts.pending, icon: <Pending />, tab: 1, color: '#ff9800' },
-    { label: 'Confirmed', value: counts.confirmed, icon: <CheckCircle />, tab: 2, color: '#4caf50' },
-    { label: 'Completed', value: counts.completed, icon: <ConfirmationNumber />, tab: 3, color: '#2196f3' },
-    { label: 'Cancelled', value: counts.cancelled, icon: <Cancel />, tab: 4, color: '#f44336' }
-  ];
-
-  const filteredApps = getFilteredApps();
-
   const getUserName = (appt) => {
     return appt.user_username || appt.user?.username || appt.user?.email?.split('@')[0] || 'Patient';
   };
@@ -169,6 +138,23 @@ export default function AdminAppointments() {
   const getOtherConcern = (appt) => {
     return appt.other_concern || appt.notes || '';
   };
+
+  // Calculate counts based on current appointments
+  const counts = {
+    total: appointments.length,
+    pending: appointments.filter(a => a?.status === 'pending').length,
+    confirmed: appointments.filter(a => a?.status === 'confirmed').length,
+    completed: appointments.filter(a => a?.status === 'completed').length,
+    cancelled: appointments.filter(a => a?.status === 'cancelled').length
+  };
+
+  const stats = [
+    { label: 'All', value: counts.total, icon: <EventNote />, tab: 0, color: '#2ca6a4' },
+    { label: 'Pending', value: counts.pending, icon: <Pending />, tab: 1, color: '#ff9800' },
+    { label: 'Confirmed', value: counts.confirmed, icon: <CheckCircle />, tab: 2, color: '#4caf50' },
+    { label: 'Completed', value: counts.completed, icon: <ConfirmationNumber />, tab: 3, color: '#2196f3' },
+    { label: 'Cancelled', value: counts.cancelled, icon: <Cancel />, tab: 4, color: '#f44336' }
+  ];
 
   return (
     <Box className="appointments-wrapper">
@@ -248,10 +234,10 @@ export default function AdminAppointments() {
                   {['All Appointments', 'Pending Appointments', 'Confirmed Appointments', 'Completed Appointments', 'Cancelled Appointments'][tabValue]}
                 </Typography>
               </div>
-              <Chip label={`${filteredApps.length} ${filteredApps.length === 1 ? 'Appointment' : 'Appointments'}`} size="small" className="total-chip" />
+              <Chip label={`${appointments.length} ${appointments.length === 1 ? 'Appointment' : 'Appointments'}`} size="small" className="total-chip" />
             </div>
 
-            {filteredApps.length === 0 && !loading ? (
+            {appointments.length === 0 && !loading ? (
               <Box className="empty-state">
                 <MedicalServices sx={{ fontSize: 64, color: '#2ca6a4', opacity: 0.5 }} />
                 <Typography variant="h6" color="textSecondary">No appointments found</Typography>
@@ -285,7 +271,7 @@ export default function AdminAppointments() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {filteredApps.map((appt, idx) => (
+                    {appointments.map((appt, idx) => (
                       <React.Fragment key={appt.id}>
                         <TableRow className="appointment-table-row" sx={{ animationDelay: `${idx * 0.05}s` }}>
                           <TableCell>

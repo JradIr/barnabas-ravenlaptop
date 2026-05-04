@@ -19,6 +19,8 @@ import Appointment from './components/Appointment'
 import AppointmentForm from './components/AppointmentForm'
 import AdminDashboard from './components/AdminDashboard'
 import AdminAppointments from './components/AdminAppointments'
+import AdminPatients from './components/AdminPatients'
+import AdminAuditLog from './components/AdminAuditLog'
 import AppointmentScheduler from './components/AppointmentScheduler'
 import ExternalNavbar from './components/ExternalNavbar'
 
@@ -38,6 +40,7 @@ function App() {
                       location.pathname.startsWith('/admin/payments') ||
                       location.pathname.startsWith('/admin/patients') ||
                       location.pathname.startsWith('/admin/reports') ||
+                      location.pathname.startsWith('/admin/audit') ||
                       location.pathname.startsWith('/admin/appointments');
 
   return (
@@ -64,6 +67,8 @@ function App() {
               <Routes>
                 <Route path="/admin/dashboard" element={<AdminDashboard />} />
                 <Route path="/admin/appointments" element={<AdminAppointments />} />
+                <Route path="/admin/patients" element={<AdminPatients />} />
+                <Route path="/admin/audit" element={<AdminAuditLog />} />
               </Routes>
               <AdminFooter/>
             </>

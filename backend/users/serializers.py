@@ -68,41 +68,64 @@ class AppointmentSerializer(serializers.ModelSerializer):
         return None
     
     def validate_date(self, value):
-        if value < timezone.now().date():
+        if value and value < timezone.now().date():
             raise serializers.ValidationError("Cannot book appointments for past dates")
-        return value    
+        return value
+    
     def validate(self, data):
         date = data.get('date')
         time = data.get('time')
         service = data.get('service')
         
-        if date.weekday() == 6:
-            raise serializers.ValidationError({"date": "Clinic is closed on Sundays"})
+        # Skip full validation if this is just a status update (PATCH with no date/time changes)
+        # Only validate date/time constraints if we're actually creating or updating date/time fields
+        is_status_only_update = not date and not time and not service and self.instance is not None
         
-        hour = time.hour
-        if hour < 9 or hour >= 18:
-            raise serializers.ValidationError({"time": "Clinic hours are 9:00 AM to 6:00 PM"})
+        if is_status_only_update:
+            # Only updating status - skip all validation
+            return data
         
-        if hour == 12:
-            raise serializers.ValidationError({"time": "Clinic is closed for lunch from 12:00 PM to 1:00 PM"})
+        # Only validate date constraints if date is being set
+        if date is not None:
+            # Check if date is provided and valid
+            if date.weekday() == 6:
+                raise serializers.ValidationError({"date": "Clinic is closed on Sundays"})
         
-        existing_count = Appointment.objects.filter(
-            date=date,
-            time=time,
-            status__in=['pending', 'confirmed', 'pencil']
-        ).exclude(id=self.instance.id if self.instance else None).count()
+        # Only validate time constraints if time is being set
+        if time is not None:
+            hour = time.hour
+            if hour < 9 or hour >= 18:
+                raise serializers.ValidationError({"time": "Clinic hours are 9:00 AM to 6:00 PM"})
+            
+            if hour == 12:
+                raise serializers.ValidationError({"time": "Clinic is closed for lunch from 12:00 PM to 1:00 PM"})
         
-        if existing_count >= 2:
-            raise serializers.ValidationError({"time": "This time slot is fully booked"})
+        # Only check for conflicts if both date and time are provided
+        if date is not None and time is not None:
+            existing_count = Appointment.objects.filter(
+                date=date,
+                time=time,
+                status__in=['pending', 'confirmed', 'pencil']
+            ).exclude(id=self.instance.id if self.instance else None).count()
+            
+            if existing_count >= 2:
+                raise serializers.ValidationError({"time": "This time slot is fully booked"})
         
         return data
     
     def create(self, validated_data):
-    # Don't override status if it's already set
+        # Don't override status if it's already set
         if 'status' not in validated_data:
             validated_data['status'] = 'pending'
         return super().create(validated_data)
-
+    
+    def update(self, instance, validated_data):
+        # For partial updates (PATCH), only update the fields that are provided
+        # This ensures we don't override existing values with None
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
 
 class InvoiceItemSerializer(serializers.ModelSerializer):
     class Meta:

@@ -1,54 +1,634 @@
-:root {
-  --teal-main: #2ca6a4;
-  --teal-dark: #1f7a78;
-  --teal-light: #eafaf9;
+/* src/components/style/About.css */
+/* Hero Section */
+.about-hero-section {
+  position: relative;
+  min-height: 70vh;
+  background: linear-gradient(135deg, #0d3d3b 0%, #1a5f5d 50%, #2ca6a4 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 120px 0;
+  margin-top: 0;
 }
 
-/* Container with offset for fixed navbar */
-.about-container {
+.about-hero-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  min-height: 60vh;
+  position: relative;
+  z-index: 10;
+  pointer-events: auto;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  padding: 8px 20px;
+  border-radius: 50px;
+  margin-bottom: 2rem;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+  pointer-events: auto;
+}
+
+.hero-badge .badge-icon {
+  color: #ffd700;
+  font-size: 20px;
+}
+
+.hero-badge Typography {
+  color: white;
+  font-weight: 500;
+}
+
+.about-hero-title {
+  font-size: 3.5rem !important;
+  font-weight: 800 !important;
+  color: white !important;
+  margin-bottom: 1.5rem !important;
+  line-height: 1.2 !important;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+  pointer-events: auto;
+}
+
+.about-hero-subtitle {
+  font-size: 1.25rem !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+  margin-bottom: 2rem !important;
+  line-height: 1.6 !important;
+  max-width: 700px;
+  margin-left: auto;
+  margin-right: auto;
+  pointer-events: auto;
+}
+
+/* Hero Background Animation */
+.hero-bg-animation {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.hero-circle {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  animation: floatAnimation 20s infinite ease-in-out;
+  pointer-events: none;
+}
+
+.hero-circle-1 { width: 500px; height: 500px; top: -200px; right: -100px; }
+.hero-circle-2 { width: 400px; height: 400px; bottom: -150px; left: -100px; animation-delay: -5s; }
+.hero-circle-3 { width: 300px; height: 300px; top: 50%; left: 20%; animation-delay: -10s; }
+.hero-circle-4 { width: 250px; height: 250px; bottom: 20%; right: 10%; animation-delay: -15s; }
+
+@keyframes floatAnimation {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(30px, -30px) scale(1.1); }
+  50% { transform: translate(-20px, 20px) scale(0.9); }
+  75% { transform: translate(20px, 30px) scale(1.05); }
+}
+
+/* Hero Animations */
+@keyframes badgeSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes titleReveal {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes subtitleFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-badge {
+  animation: badgeSlideDown 0.6s ease-out;
+}
+
+.animate-title {
+  animation: titleReveal 0.8s ease-out 0.2s both;
+}
+
+.animate-subtitle {
+  animation: subtitleFadeIn 0.8s ease-out 0.4s both;
+}
+
+/* Sections - White Background */
+.section {
+  padding: 100px 0;
+  background: #ffffff;
+  position: relative;
+  text-align: center;
+  margin: 0;
+}
+
+.section:first-of-type {
+  padding-top: 100px;
+}
+
+.section:last-of-type {
+  padding-bottom: 100px;
+}
+
+.section .MuiContainer-root {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.section-title {
+  text-align: center;
+  margin-top: 5rem !important;
+  margin-bottom: 1.5rem !important;
+  padding-top: 2rem !important;
+  color: #1a5f5d;
+  font-weight: 700 !important;
+  position: relative;
+  font-size: 2.125rem !important;
+  letter-spacing: -0.02em;
+}
+
+.section-title::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 3px;
+  background: linear-gradient(90deg, #2ca6a4, #1a5f5d);
+  border-radius: 2px;
+}
+
+.section-subtitle {
+  text-align: center;
+  max-width: 650px;
+  margin: 0 auto 3rem auto !important;
+  color: #5f6c7a;
+  font-size: 1.1rem !important;
+  line-height: 1.5 !important;
+  font-weight: 400 !important;
+}
+
+/* Scroll Animation Classes - ALL FADE LEFT */
+.fade-left {
+  opacity: 0;
+  transform: translateX(-25px);
+  transition: all 0.7s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+}
+
+.fade-left.visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Philosophy Section */
+.philosophy-section {
+  padding: 100px 0;
+  background: #ffffff;
+}
+
+.philosophy-content {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.philosophy-text {
+  font-size: 1.1rem;
+  line-height: 1.8;
+  color: #2d3a45;
+  text-align: center;
+  margin: 1.5rem auto;
+  padding: 1rem;
+  max-width: 800px;
+}
+
+/* Story Section */
+.story-section {
+  background: #ffffff;
+}
+
+.story-content {
+  max-width: 800px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.story-text {
+  font-size: 1.05rem;
+  line-height: 1.8;
+  color: #2d3a45;
+  text-align: center;
+  margin: 1.5rem auto;
+  padding: 1rem;
+  max-width: 800px;
+}
+
+/* Doctor Section */
+.doctor-section {
+  padding: 100px 0;
+  background: #ffffff;
+}
+
+.doctor-image-wrapper {
   display: flex;
   justify-content: center;
-  align-items: flex-start;
-  padding: 100px 20px 60px; /* 100px top padding offsets navbar */
-  background: var(--teal-light);
-  min-height: 100vh;
-  animation: fadeIn 1.2s ease-in-out;
+  align-items: center;
 }
 
-/* Card */
-.about-card {
-  background: #fff;
-  padding: 40px;
-  border-radius: 12px;
-  max-width: 800px;
-  box-shadow: 0px 6px 12px rgba(0,0,0,0.1);
-  transition: transform 0.3s ease;
+.doctor-placeholder {
+  width: 300px;
+  height: 300px;
+  margin: 0 auto;
 }
 
-.about-card:hover {
-  transform: translateY(-5px);
+.doctor-placeholder svg {
+  width: 100%;
+  height: 100%;
 }
 
-/* Title */
-.about-title {
-  color: var(--teal-main);
-  font-size: 2rem;
-  font-weight: bold;
-  margin-bottom: 20px;
+.doctor-content {
+  padding: 1rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.doctor-title {
+  color: #1a5f5d;
+  font-weight: 700 !important;
+  margin-bottom: 0.5rem !important;
+  font-size: 2rem !important;
   text-align: center;
 }
 
-/* Text */
-.about-text {
-  font-size: 1.1rem;
-  line-height: 1.6;
-  color: #333;
-  margin-bottom: 20px;
-  text-align: justify;
+.doctor-subtitle {
+  color: #2ca6a4;
+  font-weight: 500 !important;
+  margin-bottom: 1.5rem !important;
+  font-size: 1.25rem !important;
+  text-align: center;
 }
 
-/* Animations */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+.doctor-text {
+  color: #2d3a45;
+  line-height: 1.8;
+  font-size: 1rem;
+  text-align: center;
+  margin: 1.5rem auto;
+  padding: 0.5rem;
+  max-width: 800px;
+}
+
+/* Approach Section */
+.approach-section {
+  background: #ffffff;
+}
+
+.approach-content {
+  max-width: 800px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.approach-text {
+  font-size: 1.05rem;
+  line-height: 1.8;
+  color: #2d3a45;
+  text-align: center;
+  margin: 1.5rem auto;
+  padding: 1rem;
+  max-width: 800px;
+}
+
+/* Difference Section */
+.difference-section {
+  padding: 100px 0;
+  background: #ffffff;
+}
+
+.difference-grid {
+  max-width: 1000px;
+  margin: 2rem auto 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2rem;
+  justify-content: center;
+  align-items: center;
+}
+
+.difference-item {
+  background: white;
+  padding: 2rem;
+  border-radius: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  border: 1px solid #e0e8f0;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  text-align: center;
+  margin: 1rem 0;
+}
+
+.difference-item:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+}
+
+.difference-title {
+  color: #1a5f5d;
+  font-weight: 700 !important;
+  margin-bottom: 0.75rem !important;
+  font-size: 1.25rem !important;
+}
+
+.difference-text {
+  color: #5f6c7a;
+  line-height: 1.6;
+}
+
+/* CTA Section */
+.cta-section {
+  background: linear-gradient(135deg, #1a5f5d 0%, #0d403e 100%);
+  color: white;
+  padding: 80px 0;
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+  margin: 0;
+}
+
+.cta-section .MuiContainer-root {
+  position: relative;
+  z-index: 2;
+}
+
+.cta-section::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%);
+  animation: rotateSlow 30s linear infinite;
+  z-index: 0;
+}
+
+@keyframes rotateSlow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.cta-title {
+  font-weight: 700 !important;
+  margin-bottom: 1rem !important;
+  color: white !important;
+  text-align: center;
+}
+
+.cta-subtitle {
+  font-size: 1.1rem !important;
+  margin-bottom: 2rem !important;
+  color: rgba(255,255,255,0.95);
+  text-align: center;
+}
+
+.cta-button {
+  background: white !important;
+  color: #1a5f5d !important;
+  padding: 14px 36px !important;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  border-radius: 50px !important;
+  text-transform: none !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.cta-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+}
+
+.pulse-animation {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(255, 255, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
+/* Scroll to Top Button */
+.scroll-top-btn {
+  position: fixed !important;
+  bottom: 100px;
+  right: 30px;
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease !important;
+  background: linear-gradient(135deg, #2ca6a4 0%, #1a5f5d 100%) !important;
+  color: white !important;
+}
+
+.scroll-top-btn.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.scroll-top-btn:hover {
+  transform: translateY(-5px) !important;
+  box-shadow: 0 5px 15px rgba(44, 166, 164, 0.4) !important;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .about-hero-section {
+    padding: 80px 20px;
+  }
+  
+  .about-hero-title {
+    font-size: 2.25rem !important;
+  }
+
+  .about-hero-subtitle {
+    font-size: 1rem !important;
+  }
+
+  .section {
+    padding: 70px 0;
+  }
+  
+  .section-title {
+    font-size: 1.75rem !important;
+    margin-top: 3rem !important;
+  }
+  
+  .section-subtitle {
+    font-size: 1rem !important;
+    margin-bottom: 2rem !important;
+  }
+
+  .scroll-top-btn {
+    bottom: 80px;
+    right: 20px;
+  }
+  
+  .difference-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .doctor-placeholder {
+    width: 200px;
+    height: 200px;
+    margin-bottom: 2rem;
+  }
+  
+  .doctor-title {
+    font-size: 1.75rem !important;
+  }
+  
+  .philosophy-text,
+  .story-text,
+  .approach-text,
+  .doctor-text {
+    margin: 1rem auto;
+    padding: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .about-hero-section {
+    padding: 60px 15px;
+  }
+  
+  .about-hero-title {
+    font-size: 1.75rem !important;
+  }
+
+  .section {
+    padding: 50px 0;
+  }
+  
+  .section-title {
+    font-size: 1.5rem !important;
+    margin-top: 2rem !important;
+  }
+  
+  .section-subtitle {
+    font-size: 0.9rem !important;
+    margin-bottom: 1.5rem !important;
+  }
+  
+  .philosophy-text,
+  .story-text,
+  .approach-text,
+  .doctor-text {
+    font-size: 0.95rem;
+    margin: 0.75rem auto;
+    padding: 0.5rem;
+  }
+  
+  .difference-item {
+    padding: 1.5rem;
+  }
+  
+  .cta-button {
+    padding: 12px 28px !important;
+    font-size: 0.9rem !important;
+  }
+  
+  .doctor-placeholder {
+    width: 150px;
+    height: 150px;
+  }
+  
+  .doctor-title {
+    font-size: 1.5rem !important;
+  }
+  
+  .doctor-subtitle {
+    font-size: 1rem !important;
+  }
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Container spacing */
+.MuiContainer-root {
+  padding-left: 24px !important;
+  padding-right: 24px !important;
+}
+
+/* Typography */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+}
+
+p {
+  line-height: 1.5;
+  color: #2d3a45;
 }
