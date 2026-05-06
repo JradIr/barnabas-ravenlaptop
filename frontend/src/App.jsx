@@ -15,6 +15,7 @@ import {Routes, Route, useLocation} from 'react-router-dom'
 import ProtectedRoutes from './components/ProtectedRoutes'
 import PasswordResetRequest from './components/PasswordResetRequest'
 import PasswordReset from './components/PasswordReset'
+import AboutLogin from './components/AboutLogin'
 import AdminLogin from './components/AdminLogin'
 import Appointment from './components/Appointment'
 import AppointmentForm from './components/AppointmentForm'
@@ -66,6 +67,7 @@ function App() {
                 <Route path="/request/password_reset" element={<PasswordResetRequest />} />
                 <Route path="/admin" element={<AdminLogin />} />
                 <Route path="/password_reset/:token" element={<PasswordReset />} />
+                <Route path="/aboutpage" element={<AboutLogin />} />
               </Routes>
               <Footer/>
             </>

@@ -118,7 +118,7 @@ const Home = () => {
           <Box className="hero-content">
             <div className="hero-badge animate-badge">
               <EmojiEventsIcon className="badge-icon" />
-              <Typography variant="body2">Trusted Since 2005</Typography>
+              <Typography variant="body2">Trusted Since 2006</Typography>
             </div>
             
             <Typography variant="h1" className="hero-title animate-title">

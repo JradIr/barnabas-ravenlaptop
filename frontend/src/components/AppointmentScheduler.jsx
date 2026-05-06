@@ -1,159 +1,254 @@
-// src/components/AppointmentScheduler.jsx
+// AppointmentScheduler.jsx
 import React, { useState, useEffect, useCallback } from "react";
-import "react-calendar/dist/Calendar.css";
 import "./style/AppointmentScheduler.css";
 import AxiosInstance from "./AxiosInstance";
-import {
-  Box, Typography, TextField, Button, Stack, LinearProgress, Alert, Snackbar,
-  Chip, Paper, Divider, IconButton, Grid, Container, useMediaQuery, useTheme,
-  Fade, Slide, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle,
-  DialogContent, DialogActions, Tabs, Tab, Card, CardContent, Stepper,
-  Step, StepLabel, Badge, List, ListItem, ListItemText, ListItemIcon,
-  Accordion, AccordionSummary, AccordionDetails
-} from "@mui/material";
-import {
-  AccessTime as AccessTimeIcon, Cancel as CancelIcon,
-  ArrowBack as ArrowBackIcon, ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
-  MedicalServices as MedicalServicesIcon, Close as CloseIcon,
-  Queue as QueueIcon, CheckCircle as CheckCircleIcon, Pending as PendingIcon,
-  Notifications as NotificationsIcon, ExpandMore as ExpandMoreIcon,
-  EventNote as EventNoteIcon, Warning as WarningIcon
-} from "@mui/icons-material";
-
-// Constants
-const CLINIC_OPEN = 9, CLINIC_CLOSE = 18, LUNCH_START = 12, LUNCH_END = 13;
-const TOTAL_SLOTS_PER_DAY = 10;
-
-const SERVICES = [
-  { id: "teeth_cleaning", name: "Teeth Cleaning", duration: 60, price: "₱1,000", description: "Professional dental cleaning" },
-  { id: "tooth_extraction", name: "Tooth Extraction", duration: 60, price: "₱1,000", description: "Safe tooth removal" },
-  { id: "dental_filling", name: "Dental Filling", duration: 60, price: "₱1,000", description: "Restore decayed teeth" },
-  { id: "orthodontic", name: "Braces/Orthodontic", duration: 120, price: "₱50,000", description: "Braces and alignment" }
-];
-
-const OTHER_CONCERNS = [
-  "Consultation", "Root Canal", "Dental Implant", "Teeth Whitening",
-  "Gum Pain", "Sensitive Teeth", "Broken Tooth", "Bad Breath", "Other"
-];
-
-const fmtTime = (h, m) => `${h > 12 ? h - 12 : h === 0 ? 12 : h}:${m.toString().padStart(2,'0')} ${h < 12 ? "AM" : "PM"}`;
+import Flatpickr from "react-flatpickr";
+import "flatpickr/dist/themes/material_green.css";
 
 export default function AppointmentScheduler({ role = "client" }) {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  
   const [appointments, setAppointments] = useState([]);
-  const [myAppointments, setMyAppointments] = useState([]);
+  const [myAppointment, setMyAppointment] = useState(null);
   const [waitlistEntries, setWaitlistEntries] = useState([]);
   const [notifications, setNotifications] = useState([]);
-  const [aiSuggestions, setAiSuggestions] = useState([]);
-  const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
-  const [selectedService, setSelectedService] = useState(null);
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState(null);
-  const [activeStep, setActiveStep] = useState(0);
-  const [tabValue, setTabValue] = useState(0);
-  const [notifTabValue, setNotifTabValue] = useState(0);
+  const [selectedService, setSelectedService] = useState("");
+  const [description, setDescription] = useState("");
+  const [availableSlots, setAvailableSlots] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [waitlistDialogOpen, setWaitlistDialogOpen] = useState(false);
-  const [showAIPanel, setShowAIPanel] = useState(false);
-  const [form, setForm] = useState({ selectedConcern: "", customConcern: "", urgencyLevel: 1 });
-  const [toast, setToast] = useState({ open: false, message: "", severity: "success" });
+  const [toast, setToast] = useState(null);
+  const [pencilReservations, setPencilReservations] = useState({});
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [bookingData, setBookingData] = useState(null);
+  const [step, setStep] = useState(1); // 1: Calendar, 2: Service, 3: Time, 4: Confirmation
+
+  const CLINIC_OPEN = 9;
+  const CLINIC_CLOSE = 18;
+  const LUNCH_START = 12;
+  const LUNCH_END = 13;
+  const TOTAL_SLOTS_PER_DAY = 10;
+
+  const SERVICES = [
+    { id: "teeth_cleaning", name: "Teeth Cleaning", duration: 60, price: "₱1,000", icon: "fa-tooth" },
+    { id: "tooth_extraction", name: "Tooth Extraction", duration: 60, price: "₱1,000", icon: "fa-teeth" },
+    { id: "dental_filling", name: "Dental Filling", duration: 60, price: "₱1,000", icon: "fa-fill-drip" },
+    { id: "orthodontic", name: "Braces/Orthodontic", duration: 120, price: "₱50,000", icon: "fa-smile" }
+  ];
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   const fetchData = useCallback(async () => {
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
-      const [appointmentsRes, myAppointmentsRes, aiRes, waitlistRes, notificationsRes] = await Promise.all([
+      const [appointmentsRes, myAppointmentsRes, waitlistRes, notificationsRes] = await Promise.all([
         AxiosInstance.get("appointments/"),
         AxiosInstance.get("appointments/", { params: { user_id: user?.id } }),
-        AxiosInstance.get("appointments/ai_suggestions/"),
         AxiosInstance.get("appointments/waitlist_status/"),
         AxiosInstance.get("notifications/")
       ]);
       
       setAppointments(Array.isArray(appointmentsRes.data) ? appointmentsRes.data : []);
-      setMyAppointments(Array.isArray(myAppointmentsRes.data) ? myAppointmentsRes.data : []);
-      setAiSuggestions(aiRes.data?.suggestions || []);
+      const myApps = Array.isArray(myAppointmentsRes.data) ? myAppointmentsRes.data : [];
+      const activeApp = myApps.find(a => a && !["completed", "cancelled"].includes(a.status));
+      setMyAppointment(activeApp || null);
+      
       const waitlistData = waitlistRes.data?.waitlists || waitlistRes.data?.waitlist_entries || [];
       setWaitlistEntries(waitlistData);
       setNotifications(Array.isArray(notificationsRes.data?.notifications) ? notificationsRes.data.notifications : []);
     } catch (err) {
       console.error("Fetch error:", err);
-      setAppointments([]);
-      setMyAppointments([]);
-      setWaitlistEntries([]);
-      setNotifications([]);
     }
   }, []);
 
   useEffect(() => {
     fetchData();
-    // Refresh data every 30 seconds for real-time updates
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  const showToast = (message, severity = "success") => {
-    setToast({ open: true, message, severity });
-    setTimeout(() => setToast(prev => ({ ...prev, open: false })), 4000);
-  };
+  useEffect(() => {
+    if (selectedDate && step === 3) {
+      fetchAvailableSlots();
+    }
+  }, [selectedDate, selectedService, step]);
 
-  const isPastDate = (y, m, d) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return new Date(y, m, d) < today;
-  };
-  
-  const isSunday = (y, m, d) => new Date(y, m, d).getDay() === 0;
-
-  const getAvailableTimeSlots = useCallback(async () => {
-    if (!selectedDate) return [];
-    
-    const dateStr = `${selectedDate.year}-${String(selectedDate.month + 1).padStart(2,'0')}-${String(selectedDate.day).padStart(2,'0')}`;
-    const serviceId = selectedService?.id || form.selectedConcern?.toLowerCase().replace(/ /g, '_') || "consultation";
-    
+  const fetchAvailableSlots = async () => {
+    if (!selectedDate) return;
+    setLoading(true);
     try {
+      const dateStr = selectedDate;
+      const serviceId = SERVICES.find(s => s.name === selectedService)?.id || "consultation";
       const { data } = await AxiosInstance.get("appointments/get_available_slots/", {
         params: { date: dateStr, service: serviceId }
       });
-      return data.available_slots || [];
+      
+      const slots = generateTimeSlots().map(slot => {
+        const isBooked = data.available_slots && !data.available_slots.includes(slot.time);
+        const isPenciled = pencilReservations[`${dateStr}_${slot.time}`];
+        return {
+          ...slot,
+          isBooked: isBooked && !isPenciled,
+          isPenciled: isPenciled === true,
+          isMyPencil: isPenciled === "mine"
+        };
+      });
+      setAvailableSlots(slots);
     } catch (error) {
       console.error("Error fetching slots:", error);
-      return [];
-    }
-  }, [selectedDate, selectedService, form.selectedConcern]);
-
-  const createAppointment = async () => {
-    if (!selectedDate || !selectedTimeSlot) return;
-    setLoading(true);
-    try {
-      const requestData = {
-        date: `${selectedDate.year}-${String(selectedDate.month+1).padStart(2,'0')}-${String(selectedDate.day).padStart(2,'0')}`,
-        time: selectedTimeSlot.timeValue,
-        service: selectedService?.id || null,
-        other_concern: form.selectedConcern === "Other" ? form.customConcern : form.selectedConcern,
-        urgency_level: form.urgencyLevel
-      };
-      
-      await AxiosInstance.post("appointments/", requestData);
-      showToast("Appointment requested successfully! Awaiting admin confirmation.", "success");
-      setSelectedDate(null);
-      setSelectedService(null);
-      setSelectedTimeSlot(null);
-      setActiveStep(0);
-      await fetchData();
-    } catch (error) {
-      console.error("Create appointment error:", error);
-      showToast(error.response?.data?.error || error.response?.data?.time || "Error creating appointment", "error");
+      setAvailableSlots(generateTimeSlots().map(slot => ({ ...slot, isBooked: false, isPenciled: false })));
     } finally {
       setLoading(false);
     }
   };
 
-  const cancelAppointment = async (id) => {
+  const generateTimeSlots = () => {
+    const slots = [];
+    for (let hour = CLINIC_OPEN; hour < CLINIC_CLOSE; hour++) {
+      if (hour === LUNCH_START) continue;
+      const ampm = hour >= 12 ? "PM" : "AM";
+      const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+      slots.push({
+        time: `${displayHour}:00 ${ampm}`,
+        timeValue: `${hour.toString().padStart(2, '0')}:00:00`,
+        duration: 60
+      });
+      slots.push({
+        time: `${displayHour}:30 ${ampm}`,
+        timeValue: `${hour.toString().padStart(2, '0')}:30:00`,
+        duration: 60
+      });
+    }
+    return slots;
+  };
+
+  const handleDateSelect = (date) => {
+    setSelectedDate(date);
+    setStep(2);
+    showToast("Date selected! Now choose a service.", "info");
+  };
+
+  const handleServiceSelect = (service) => {
+    setSelectedService(service);
+    setStep(3);
+    showToast("Service selected! Now pick a time slot.", "info");
+  };
+
+  const handleBackToDate = () => {
+    setStep(1);
+    setSelectedService("");
+    setSelectedSlot(null);
+  };
+
+  const handleBackToService = () => {
+    setStep(2);
+    setSelectedSlot(null);
+  };
+
+  const handleBackToTime = () => {
+    setStep(3);
+    setShowConfirmation(false);
+    setBookingData(null);
+  };
+
+  const handleSlotSelect = (slot) => {
+    setSelectedSlot(slot);
+    setShowConfirmation(true);
+    setStep(4);
+    setBookingData({
+      date: selectedDate,
+      service: selectedService,
+      time: slot.time,
+      timeValue: slot.timeValue,
+      description: description,
+      price: SERVICES.find(s => s.name === selectedService)?.price || "Price upon consultation"
+    });
+  };
+
+  const handlePencilReservation = (slot) => {
+    if (!selectedDate) {
+      showToast("Please select a date first", "warning");
+      return;
+    }
+    if (!selectedService) {
+      showToast("Please select a service first", "warning");
+      return;
+    }
+    if (slot.isBooked) {
+      showToast("This slot is already booked", "warning");
+      return;
+    }
+    
+    const key = `${selectedDate}_${slot.time}`;
+    setPencilReservations(prev => ({
+      ...prev,
+      [key]: "mine"
+    }));
+    showToast(`✏️ Pencil reserved for ${slot.time} (expires in 8 hours)`, "info");
+    
+    setTimeout(() => {
+      setPencilReservations(prev => {
+        if (prev[key] === "mine") {
+          const newPrev = { ...prev };
+          delete newPrev[key];
+          showToast(`Pencil reservation for ${slot.time} has expired`, "warning");
+          return newPrev;
+        }
+        return prev;
+      });
+    }, 8 * 60 * 60 * 1000);
+  };
+
+  const handleConfirmBooking = async () => {
+    if (myAppointment) {
+      showToast("You already have an active appointment. Please cancel it first.", "warning");
+      return;
+    }
+    
     setLoading(true);
     try {
-      await AxiosInstance.delete(`appointments/${id}/`);
+      const requestData = {
+        date: bookingData.date,
+        time: bookingData.timeValue,
+        service: SERVICES.find(s => s.name === bookingData.service)?.id || null,
+        other_concern: bookingData.service === "Other" ? description : bookingData.service,
+        description: description
+      };
+      
+      await AxiosInstance.post("appointments/", requestData);
+      showToast("Appointment booked successfully!", "success");
+      
+      // Reset all states
+      setSelectedService("");
+      setDescription("");
+      setSelectedDate(null);
+      setSelectedSlot(null);
+      setShowConfirmation(false);
+      setBookingData(null);
+      setStep(1);
+      await fetchData();
+      
+      const key = `${selectedDate}_${bookingData.time}`;
+      setPencilReservations(prev => {
+        const newPrev = { ...prev };
+        delete newPrev[key];
+        return newPrev;
+      });
+    } catch (error) {
+      console.error("Booking error:", error);
+      showToast(error.response?.data?.error || "Error booking appointment", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelAppointment = async () => {
+    if (!myAppointment) return;
+    setLoading(true);
+    try {
+      await AxiosInstance.delete(`appointments/${myAppointment.id}/`);
       showToast("Appointment cancelled successfully", "success");
       await fetchData();
     } catch (error) {
@@ -164,551 +259,29 @@ export default function AppointmentScheduler({ role = "client" }) {
     }
   };
 
-  const getStatusColor = (status) => {
-    const colors = { confirmed: '#4caf50', pending: '#ff9800', cancelled: '#f44336', completed: '#9e9e9e' };
-    return colors[status] || '#757575';
-  };
-
-  const getStatusLabel = (status) => {
-    const labels = {
-      pending: 'Pending',
-      confirmed: 'Confirmed',
-      completed: 'Completed',
-      cancelled: 'Cancelled'
-    };
-    return labels[status] || status;
-  };
-
-  const getNotificationIcon = (type) => {
-    switch (type) {
-      case 'appointment_confirmation': return <CheckCircleIcon sx={{ color: '#4caf50' }} />;
-      case 'appointment_cancellation': return <CancelIcon sx={{ color: '#f44336' }} />;
-      case 'appointment_reminder': return <AccessTimeIcon sx={{ color: '#ff9800' }} />;
-      default: return <NotificationsIcon sx={{ color: '#00695c' }} />;
-    }
-  };
-
-  const handleDateSelect = (day, month, year) => {
-    if (isPastDate(year, month, day)) {
-      showToast("Cannot book past dates", "warning");
-      return;
-    }
-    if (isSunday(year, month, day)) {
-      showToast("Clinic closed on Sundays", "warning");
-      return;
-    }
-    setSelectedDate({ day, month, year });
-    setActiveStep(1);
-  };
-
-  const renderCalendar = () => {
-    const month = currentDate.getMonth();
-    const year = currentDate.getFullYear();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const firstDay = new Date(year, month, 1).getDay();
-    const days = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
-    const weeks = [];
-    for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
-    
-    const getDayStatus = (day) => {
-      // Count ONLY confirmed appointments for availability
-      const confirmedCount = appointments.filter(a => {
-        if (!a?.date) return false;
-        const d = new Date(a.date);
-        return d.getDate() === day && d.getMonth() === month && d.getFullYear() === year && 
-              a.status === 'confirmed';
-      }).length;
-      
-      const pendingCount = appointments.filter(a => {
-        if (!a?.date) return false;
-        const d = new Date(a.date);
-        return d.getDate() === day && d.getMonth() === month && d.getFullYear() === year && 
-              a.status === 'pending';
-      }).length;
-      
-      return { 
-        confirmedCount,
-        pendingCount,
-        isFullyBooked: confirmedCount >= TOTAL_SLOTS_PER_DAY, 
-        isPartiallyBooked: confirmedCount > 0 && confirmedCount < TOTAL_SLOTS_PER_DAY,
-        hasPending: pendingCount > 0
-      };
-    };
-
-    return (
-      <Fade in={activeStep === 0} timeout={500}>
-        <Paper elevation={3} sx={{ p: { xs: 2, md: 4 }, borderRadius: 4, width: '100%' }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-            <IconButton onClick={() => setCurrentDate(new Date(year, month - 1, 1))}><ChevronLeftIcon /></IconButton>
-            <Typography variant={isMobile ? "h6" : "h5"} fontWeight="bold" sx={{ color: '#00695c' }}>
-              {currentDate.toLocaleString("default", { month: "long" })} {year}
-            </Typography>
-            <IconButton onClick={() => setCurrentDate(new Date(year, month + 1, 1))}><ChevronRightIcon /></IconButton>
-          </Box>
-          
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, mb: 2 }}>
-            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-              <Typography key={day} textAlign="center" fontWeight="bold" fontSize={{ xs: '12px', md: '14px' }}>
-                {isMobile ? day[0] : day}
-              </Typography>
-            ))}
-          </Box>
-          
-          {weeks.map((week, weekIdx) => (
-            <Box key={weekIdx} sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, mb: 1 }}>
-              {week.map((day, i) => {
-                if (!day) return <Box key={i} sx={{ p: 2 }} />;
-                const isPast = isPastDate(year, month, day);
-                const isSun = isSunday(year, month, day);
-                const { confirmedCount, pendingCount, isFullyBooked, isPartiallyBooked, hasPending } = getDayStatus(day);
-                const statusColor = isFullyBooked ? '#f44336' : isPartiallyBooked ? '#ff9800' : '#4caf50';
-                
-                return (
-                  <Paper 
-                    key={i} 
-                    elevation={0} 
-                    onClick={() => handleDateSelect(day, month, year)}
-                    sx={{ 
-                      p: { xs: 1, md: 2 }, 
-                      textAlign: 'center', 
-                      cursor: (isPast || isSun || isFullyBooked) ? 'not-allowed' : 'pointer',
-                      opacity: (isPast || isSun) ? 0.5 : 1, 
-                      bgcolor: isSun ? '#ffebee' : isFullyBooked ? '#ffebee' : isPartiallyBooked ? '#fff3e0' : '#e8f5e9',
-                      borderRadius: 2, 
-                      transition: 'all 0.3s', 
-                      minHeight: { xs: '70px', md: '100px' },
-                      border: '1px solid #c8e6c9',
-                      position: 'relative',
-                      '&:hover': !isPast && !isSun && !isFullyBooked ? { transform: 'translateY(-4px)', boxShadow: 3, bgcolor: '#c8e6c9' } : {}
-                    }}>
-                    <Typography fontWeight="bold" fontSize={{ xs: '14px', md: '16px' }}>{day}</Typography>
-                    {!isPast && !isSun && (
-                      <>
-                        <Chip 
-                          label={isFullyBooked ? "FULL" : `${confirmedCount}/${TOTAL_SLOTS_PER_DAY}`} 
-                          size="small" 
-                          sx={{ mt: 1, bgcolor: statusColor, color: 'white', fontSize: '10px', height: '20px' }} 
-                        />
-                        {hasPending && !isFullyBooked && (
-                          <Badge 
-                            badgeContent={`${pendingCount} pending`} 
-                            color="warning"
-                            sx={{ position: 'absolute', top: -8, right: -8 }}
-                          />
-                        )}
-                      </>
-                    )}
-                    {isSun && <Typography fontSize="10px" color="error" sx={{ mt: 0.5 }}>CLOSED</Typography>}
-                  </Paper>
-                );
-              })}
-            </Box>
-          ))}
-        </Paper>
-      </Fade>
-    );
-  };
-
-  const renderServiceSelection = () => (
-    <Slide direction="left" in={activeStep === 1} mountOnEnter unmountOnExit timeout={500}>
-      <Paper elevation={3} sx={{ p: { xs: 2, md: 4 }, borderRadius: 4, width: '100%' }}>
-        <Button startIcon={<ArrowBackIcon />} onClick={() => { setSelectedDate(null); setActiveStep(0); }} sx={{ mb: 3 }}>Back to Calendar</Button>
-        
-        <Typography variant={isMobile ? "h6" : "h5"} fontWeight="bold" gutterBottom sx={{ color: '#00695c' }}>
-          Select Dental Service
-        </Typography>
-        
-        <Grid container spacing={2} sx={{ mb: 4 }}>
-          {SERVICES.map(service => (
-            <Grid item xs={12} sm={6} key={service.id}>
-              <Card 
-                onClick={() => { setSelectedService(service); setActiveStep(2); }}
-                sx={{ 
-                  cursor: 'pointer', 
-                  transition: '0.3s', 
-                  border: `2px solid ${selectedService?.id === service.id ? '#00695c' : '#e0e0e0'}`,
-                  '&:hover': { transform: 'translateX(8px)', borderColor: '#00695c' }
-                }}>
-                <CardContent>
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Box>
-                      <Typography variant="h6" fontWeight="bold">{service.name}</Typography>
-                      <Typography variant="body2" color="text.secondary">{service.description}</Typography>
-                      <Chip label={`${service.duration} mins`} size="small" sx={{ mt: 1, bgcolor: '#e0f2f1' }} />
-                    </Box>
-                    <Typography variant="h5" sx={{ color: '#00695c', fontWeight: 'bold' }}>{service.price}</Typography>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-        
-        <Divider sx={{ my: 3 }}>OR</Divider>
-        
-        <Typography variant="h6" fontWeight="bold" gutterBottom sx={{ color: '#00695c' }}>Other Dental Concerns</Typography>
-        
-        <FormControl fullWidth sx={{ mb: 2 }}>
-          <InputLabel>Select a concern</InputLabel>
-          <Select
-            value={form.selectedConcern}
-            label="Select a concern"
-            onChange={(e) => {
-              const value = e.target.value;
-              setForm({ ...form, selectedConcern: value, customConcern: value === "Other" ? "" : "" });
-              if (value !== "Other") {
-                setSelectedService(null);
-              }
-            }}
-          >
-            {OTHER_CONCERNS.map(concern => (
-              <MenuItem key={concern} value={concern}>{concern}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        
-        {form.selectedConcern === "Other" && (
-          <Fade in={form.selectedConcern === "Other"} timeout={300}>
-            <TextField
-              fullWidth
-              multiline
-              rows={3}
-              label="Please describe your concern"
-              placeholder="Tell us more about what you need..."
-              value={form.customConcern}
-              onChange={(e) => setForm({ ...form, customConcern: e.target.value })}
-              sx={{ mt: 2 }}
-            />
-          </Fade>
-        )}
-        
-        <Box sx={{ mt: 4, display: 'flex', gap: 2 }}>
-          <Button 
-            variant="outlined" 
-            onClick={() => setWaitlistDialogOpen(true)}
-            sx={{ borderColor: '#ff9800', color: '#ff9800' }}
-          >
-            <QueueIcon sx={{ mr: 1 }} /> Join Waitlist
-          </Button>
-          <Button 
-            variant="contained" 
-            onClick={() => {
-              if (selectedService || form.selectedConcern) {
-                setActiveStep(2);
-              }
-            }} 
-            disabled={!selectedService && !form.selectedConcern}
-            sx={{ bgcolor: '#00695c', flex: 1, '&:hover': { bgcolor: '#004d40' } }}
-          >
-            Next Step →
-          </Button>
-        </Box>
-      </Paper>
-    </Slide>
-  );
-
-  const [availableSlots, setAvailableSlots] = useState([]);
-  const [loadingSlots, setLoadingSlots] = useState(false);
-
-  useEffect(() => {
-    if (activeStep === 2 && selectedDate) {
-      const loadSlots = async () => {
-        setLoadingSlots(true);
-        const slots = await getAvailableTimeSlots();
-        setAvailableSlots(slots);
-        setLoadingSlots(false);
-      };
-      loadSlots();
-    }
-  }, [activeStep, selectedDate, selectedService, form.selectedConcern]);
-
-  const renderTimeSlots = () => {
-    const selectedServiceName = selectedService?.name || form.selectedConcern;
-    
-    return (
-      <Slide direction="left" in={activeStep === 2} mountOnEnter unmountOnExit timeout={500}>
-        <Paper elevation={3} sx={{ p: { xs: 2, md: 4 }, borderRadius: 4, width: '100%' }}>
-          <Button startIcon={<ArrowBackIcon />} onClick={() => { setSelectedService(null); setActiveStep(1); }} sx={{ mb: 3 }}>Back to Services</Button>
-          
-          <Typography variant={isMobile ? "h6" : "h5"} fontWeight="bold" gutterBottom sx={{ color: '#00695c' }}>
-            Select Time Slot
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Service: <strong>{selectedServiceName || "Consultation"}</strong> | Duration: <strong>{selectedService?.duration || 30} minutes</strong>
-          </Typography>
-          
-          {selectedService?.duration > 60 && (
-            <Alert severity="info" sx={{ mb: 2, bgcolor: '#e3f2fd' }}>
-              ⚠️ Long procedure - needs multiple consecutive slots
-            </Alert>
-          )}
-          
-          {loadingSlots ? (
-            <LinearProgress sx={{ my: 4 }} />
-          ) : (
-            <Grid container spacing={2}>
-              {availableSlots.map((slot, idx) => (
-                <Grid item xs={6} sm={4} md={3} key={idx}>
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    onClick={() => {
-                      setSelectedTimeSlot(slot);
-                      setActiveStep(3);
-                    }}
-                    sx={{
-                      py: 2,
-                      borderRadius: 2,
-                      borderColor: '#00695c',
-                      color: '#00695c',
-                      '&:hover': { transform: 'translateY(-4px)', boxShadow: 2, bgcolor: '#e0f2f1' }
-                    }}
-                  >
-                    <Stack alignItems="center">
-                      <AccessTimeIcon fontSize="small" />
-                      <Typography fontWeight="bold" fontSize={{ xs: '12px', sm: '14px' }}>{slot.time}</Typography>
-                    </Stack>
-                  </Button>
-                </Grid>
-              ))}
-            </Grid>
-          )}
-          
-          {!loadingSlots && availableSlots.length === 0 && (
-            <Alert severity="warning" sx={{ mt: 3 }}>
-              No available time slots for this service on the selected date. 
-              <Button size="small" onClick={() => setWaitlistDialogOpen(true)} sx={{ ml: 2 }}>
-                Join Waitlist
-              </Button>
-            </Alert>
-          )}
-        </Paper>
-      </Slide>
-    );
-  };
-
-  const renderConfirmation = () => {
-    if (!selectedDate || !selectedTimeSlot) return null;
-    
-    const dateStr = new Date(selectedDate.year, selectedDate.month, selectedDate.day).toLocaleDateString('en-US', {
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-    });
-    const serviceName = selectedService?.name || form.selectedConcern || "Consultation";
-    const servicePrice = selectedService?.price || (form.selectedConcern && form.selectedConcern !== "Other" ? "Price upon consultation" : "Price upon consultation");
-    
-    return (
-      <Slide direction="up" in={activeStep === 3} mountOnEnter unmountOnExit timeout={500}>
-        <Paper elevation={3} sx={{ p: { xs: 2, md: 4 }, borderRadius: 4, width: '100%' }}>
-          <Button startIcon={<ArrowBackIcon />} onClick={() => { setSelectedTimeSlot(null); setActiveStep(2); }} sx={{ mb: 3 }}>Back to Time Slots</Button>
-          
-          <Typography variant={isMobile ? "h6" : "h5"} fontWeight="bold" gutterBottom sx={{ color: '#00695c' }}>
-            Review Your Appointment
-          </Typography>
-          
-          <Paper variant="outlined" sx={{ p: 3, bgcolor: '#f5f5f5', borderRadius: 2, my: 2 }}>
-            <Typography variant="subtitle2" sx={{ color: '#00695c', fontWeight: 'bold' }} gutterBottom>
-              📅 Appointment Details
-            </Typography>
-            <Typography variant="h6">{dateStr}</Typography>
-            <Typography variant="h6" sx={{ color: '#00695c', mt: 1 }}>at {selectedTimeSlot.time}</Typography>
-            <Divider sx={{ my: 2 }} />
-            <Typography variant="body1"><strong>Service:</strong> {serviceName}</Typography>
-            {form.customConcern && <Typography variant="body2" sx={{ mt: 1 }}><strong>Details:</strong> {form.customConcern}</Typography>}
-            <Typography variant="body2" sx={{ mt: 1, color: '#00695c', fontWeight: 'bold' }}>Price: {servicePrice}</Typography>
-          </Paper>
-          
-          <Alert severity="info" sx={{ mb: 2, bgcolor: '#e3f2fd' }}>
-            Your appointment request will be sent to admin for confirmation. You'll receive a notification once confirmed.
-          </Alert>
-          
-          <Button 
-            variant="contained" 
-            fullWidth 
-            size="large" 
-            onClick={createAppointment} 
-            disabled={loading}
-            sx={{ bgcolor: '#00695c', '&:hover': { bgcolor: '#004d40' }, py: 1.5 }}
-          >
-            {loading ? "Processing..." : "Request Appointment"}
-          </Button>
-        </Paper>
-      </Slide>
-    );
-  };
-
-  const renderSidebar = () => {
-    const upcoming = myAppointments.filter(a => a && !["completed", "cancelled"].includes(a.status));
-    const history = myAppointments.filter(a => a && ["completed", "cancelled"].includes(a.status));
-    const displayList = tabValue === 0 ? upcoming : history;
-    
-    const unreadNotifications = notifications.filter(n => !n.is_read);
-    const readNotifications = notifications.filter(n => n.is_read);
-
-    return (
-      <Paper elevation={3} sx={{ p: 2, borderRadius: 4, position: { lg: 'sticky' }, top: 20 }}>
-        {/* My Appointments Section */}
-        <Typography variant="h6" fontWeight="bold" sx={{ color: '#00695c', mb: 2 }}>
-          My Appointments
-        </Typography>
-        <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} sx={{ mb: 2 }}>
-          <Tab label={`Upcoming (${upcoming.length})`} />
-          <Tab label={`History (${history.length})`} />
-        </Tabs>
-        
-        {displayList.length === 0 ? (
-          <Box textAlign="center" py={3}>
-            <EventNoteIcon sx={{ fontSize: 48, color: '#bdbdbd', mb: 1 }} />
-            <Typography color="text.secondary">No appointments</Typography>
-          </Box>
-        ) : (
-          displayList.map(app => (
-            <Paper key={app.id} variant="outlined" sx={{ p: 1.5, mb: 1, borderRadius: 2 }}>
-              <Box display="flex" justifyContent="space-between" alignItems="start">
-                <Box flex={1}>
-                  <Typography variant="body2" fontWeight="bold">
-                    {new Date(app.date).toLocaleDateString()}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    {app.formatted_time || app.time}
-                  </Typography>
-                  <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
-                    {app.service || app.other_concern}
-                  </Typography>
-                  <Chip 
-                    label={getStatusLabel(app.status)} 
-                    size="small" 
-                    sx={{ mt: 0.5, bgcolor: getStatusColor(app.status), color: 'white', fontSize: '10px', height: '20px' }} 
-                  />
-                </Box>
-                {app.status === "pending" && (
-                  <IconButton size="small" onClick={() => cancelAppointment(app.id)} sx={{ color: '#f44336' }}>
-                    <CancelIcon fontSize="small" />
-                  </IconButton>
-                )}
-              </Box>
-            </Paper>
-          ))
-        )}
-        
-        <Divider sx={{ my: 2 }} />
-        
-        {/* Notifications Section */}
-        <Typography variant="h6" fontWeight="bold" sx={{ color: '#00695c', mb: 2 }}>
-          Notifications
-          {unreadNotifications.length > 0 && (
-            <Badge badgeContent={unreadNotifications.length} color="error" sx={{ ml: 1 }} />
-          )}
-        </Typography>
-        
-        <Tabs value={notifTabValue} onChange={(e, v) => setNotifTabValue(v)} sx={{ mb: 2 }} size="small">
-          <Tab label={`Unread (${unreadNotifications.length})`} />
-          <Tab label={`All (${notifications.length})`} />
-        </Tabs>
-        
-        {notifications.length === 0 ? (
-          <Box textAlign="center" py={3}>
-            <NotificationsIcon sx={{ fontSize: 48, color: '#bdbdbd', mb: 1 }} />
-            <Typography color="text.secondary">No notifications</Typography>
-          </Box>
-        ) : (
-          (notifTabValue === 0 ? unreadNotifications : notifications).slice(0, 5).map(notif => (
-            <Paper key={notif.id} sx={{ p: 1.5, mb: 1, borderRadius: 2, bgcolor: notif.is_read ? 'white' : '#e3f2fd' }}>
-              <Box display="flex" alignItems="center" gap={1}>
-                {getNotificationIcon(notif.notification_type)}
-                <Box flex={1}>
-                  <Typography variant="body2" fontWeight={notif.is_read ? 'normal' : 'bold'}>
-                    {notif.title}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    {notif.message}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" fontSize="10px">
-                    {new Date(notif.created_at).toLocaleString()}
-                  </Typography>
-                </Box>
-              </Box>
-            </Paper>
-          ))
-        )}
-        
-        {notifications.length > 0 && notifTabValue === 0 && unreadNotifications.length > 5 && (
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', textAlign: 'center' }}>
-            +{unreadNotifications.length - 5} more unread
-          </Typography>
-        )}
-        
-        <Divider sx={{ my: 2 }} />
-        
-        {/* Waiting List Section */}
-        <Typography variant="h6" fontWeight="bold" sx={{ color: '#00695c', mb: 2 }}>
-          Waiting List Status
-          {waitlistEntries.filter(w => w.status === 'active').length > 0 && (
-            <Badge badgeContent={waitlistEntries.filter(w => w.status === 'active').length} color="warning" sx={{ ml: 1 }} />
-          )}
-        </Typography>
-        
-        {waitlistEntries.length === 0 ? (
-          <Box textAlign="center" py={3}>
-            <QueueIcon sx={{ fontSize: 48, color: '#bdbdbd', mb: 1 }} />
-            <Typography color="text.secondary">Not on any waitlist</Typography>
-            <Button size="small" variant="outlined" onClick={() => setWaitlistDialogOpen(true)} sx={{ mt: 1 }}>
-              Join Waitlist
-            </Button>
-          </Box>
-        ) : (
-          waitlistEntries.map(entry => (
-            <Paper key={entry.id} variant="outlined" sx={{ p: 1.5, mb: 1, borderRadius: 2 }}>
-              <Box display="flex" alignItems="center" gap={1}>
-                <WarningIcon sx={{ color: entry.urgency_level === 3 ? '#f44336' : entry.urgency_level === 2 ? '#ff9800' : '#4caf50' }} />
-                <Box flex={1}>
-                  <Typography variant="body2" fontWeight="bold">
-                    {entry.service_needed || 'Dental Service'}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    Preferred: {new Date(entry.preferred_date).toLocaleDateString()}
-                  </Typography>
-                  <Typography variant="caption" display="block">
-                    Position: #{entry.position || '?'} in queue
-                  </Typography>
-                  <Chip 
-                    label={`Urgency: ${entry.urgency_level === 3 ? 'High' : entry.urgency_level === 2 ? 'Medium' : 'Low'}`}
-                    size="small"
-                    sx={{ mt: 0.5, fontSize: '10px', height: '20px' }}
-                  />
-                </Box>
-              </Box>
-            </Paper>
-          ))
-        )}
-        
-        <Button 
-          fullWidth 
-          variant="outlined" 
-          size="small" 
-          onClick={() => setWaitlistDialogOpen(true)}
-          sx={{ mt: 1, borderColor: '#ff9800', color: '#ff9800' }}
-        >
-          Join Another Waitlist
-        </Button>
-      </Paper>
-    );
-  };
-
   const joinWaitlist = async () => {
-    if (!selectedDate) return showToast("Select a date first", "warning");
+    if (!selectedDate) {
+      showToast("Please select a date first", "warning");
+      return;
+    }
+    if (!selectedService) {
+      showToast("Please select a service first", "warning");
+      return;
+    }
+    
     setLoading(true);
     try {
       const requestData = {
-        preferred_date: `${selectedDate.year}-${String(selectedDate.month+1).padStart(2,'0')}-${String(selectedDate.day).padStart(2,'0')}`,
+        preferred_date: selectedDate,
         time_start: "09:00",
         time_end: "17:00",
-        service: selectedService?.name || form.selectedConcern || "General",
-        urgency_level: form.urgencyLevel
+        service: selectedService,
+        description: description,
+        urgency_level: 2
       };
       
-      const { data } = await AxiosInstance.post("appointments/join_waitlist/", requestData);
-      showToast(`Added to waitlist! Position: ${data.position}`, "success");
-      setWaitlistDialogOpen(false);
+      await AxiosInstance.post("appointments/join_waitlist/", requestData);
+      showToast("Added to waitlist successfully!", "success");
       await fetchData();
     } catch (error) {
       console.error("Waitlist error:", error);
@@ -718,85 +291,431 @@ export default function AppointmentScheduler({ role = "client" }) {
     }
   };
 
-  return (
-    <Container maxWidth="xl">
-      <Typography variant={isMobile ? "h4" : "h3"} textAlign="center" sx={{ my: 3, color: '#00695c', fontWeight: 'bold' }}>
-        🦷 Book Your Dental Appointment
-      </Typography>
+  const cancelWaitlist = async (entryId) => {
+    setLoading(true);
+    try {
+      await AxiosInstance.delete(`appointments/waitlist/${entryId}/`);
+      showToast("Removed from waitlist", "success");
+      await fetchData();
+    } catch (error) {
+      console.error("Cancel waitlist error:", error);
+      showToast("Error removing from waitlist", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getProcedurePrice = (serviceName) => {
+    const service = SERVICES.find(s => s.name === serviceName);
+    return service?.price || "Price upon consultation";
+  };
+
+  const getStatusColor = (status) => {
+    const colors = { confirmed: '#4caf50', pending: '#ff9800', cancelled: '#f44336', completed: '#9e9e9e' };
+    return colors[status] || '#757575';
+  };
+
+  const getStatusLabel = (status) => {
+    const labels = { pending: 'Pending', confirmed: 'Confirmed', completed: 'Completed', cancelled: 'Cancelled' };
+    return labels[status] || status;
+  };
+
+  // Render step indicator
+  const renderStepIndicator = () => (
+    <div className="step-indicator">
+      <div className={`step ${step >= 1 ? 'active' : ''}`}>
+        <div className="step-number">1</div>
+        <div className="step-label">Select Date</div>
+      </div>
+      <div className={`step-line ${step >= 2 ? 'active' : ''}`}></div>
+      <div className={`step ${step >= 2 ? 'active' : ''}`}>
+        <div className="step-number">2</div>
+        <div className="step-label">Choose Service</div>
+      </div>
+      <div className={`step-line ${step >= 3 ? 'active' : ''}`}></div>
+      <div className={`step ${step >= 3 ? 'active' : ''}`}>
+        <div className="step-number">3</div>
+        <div className="step-label">Pick Time</div>
+      </div>
+      <div className={`step-line ${step >= 4 ? 'active' : ''}`}></div>
+      <div className={`step ${step >= 4 ? 'active' : ''}`}>
+        <div className="step-number">4</div>
+        <div className="step-label">Confirmation</div>
+      </div>
+    </div>
+  );
+
+  // Render Calendar Step
+  const renderCalendarStep = () => (
+    <div className="step-content">
+      <div className="calendar-wrapper">
+        <Flatpickr
+          value={selectedDate || new Date()}
+          onChange={(dates) => dates[0] && handleDateSelect(dates[0].toISOString().split('T')[0])}
+          options={{
+            inline: true,
+            dateFormat: "Y-m-d",
+            minDate: "today",
+            disable: [
+              function(date) {
+                return date.getDay() === 0;
+              }
+            ],
+            locale: {
+              firstDayOfWeek: 1
+            }
+          }}
+        />
+        <div className="selected-date-badge">
+          <i className="fas fa-calendar-day"></i> 
+          {selectedDate ? `Selected: ${selectedDate}` : " Pick a date above to continue"}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Render Service Selection Step
+  const renderServiceStep = () => (
+    <div className="step-content">
+      <button onClick={handleBackToDate} className="back-btn">
+        <i className="fas fa-arrow-left"></i> Back to Date
+      </button>
       
-      <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-        {['Select Date', 'Choose Service', 'Pick Time', 'Review'].map((label, idx) => (
-          <Step key={idx}><StepLabel>{label}</StepLabel></Step>
+      <div className="services-grid">
+        {SERVICES.map(service => (
+          <div key={service.id} className="service-card" onClick={() => handleServiceSelect(service.name)}>
+            <i className={`fas ${service.icon}`}></i>
+            <h3>{service.name}</h3>
+            <p className="service-duration">{service.duration} minutes</p>
+            <p className="service-price">{service.price}</p>
+          </div>
         ))}
-      </Stepper>
-      
-      <Grid container spacing={3}>
-        <Grid item xs={12} lg={activeStep === 0 ? 12 : 8}>
-          {activeStep === 0 && renderCalendar()}
-          {activeStep === 1 && renderServiceSelection()}
-          {activeStep === 2 && renderTimeSlots()}
-          {activeStep === 3 && renderConfirmation()}
-        </Grid>
-        {activeStep === 0 && (
-          <Grid item xs={12} lg={4}>
-            {renderSidebar()}
-          </Grid>
-        )}
-      </Grid>
-      
-      {/* AI Panel */}
-      {showAIPanel && (
-        <Paper sx={{ position: 'fixed', bottom: 80, right: 20, width: 300, p: 2, zIndex: 1000, borderRadius: 2, boxShadow: 3, bgcolor: 'white' }}>
-          <Box display="flex" justifyContent="space-between" alignItems="center">
-            <Typography fontWeight="bold" sx={{ color: '#00695c' }}>🤖 AI Assistant</Typography>
-            <IconButton size="small" onClick={() => setShowAIPanel(false)}><CloseIcon fontSize="small" /></IconButton>
-          </Box>
-          <Divider sx={{ my: 1 }} />
-          <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
-            {aiSuggestions.map((s, i) => (
-              <Paper key={i} sx={{ p: 1, mb: 1, bgcolor: '#f5f5f5' }}>
-                <Typography variant="body2">{s.description || s.title || s}</Typography>
-              </Paper>
-            ))}
-            {aiSuggestions.length === 0 && (
-              <Typography variant="body2" color="text.secondary" textAlign="center">No suggestions available</Typography>
-            )}
-          </Box>
-        </Paper>
+        <div className="service-card other-service" onClick={() => handleServiceSelect("Other")}>
+          <i className="fas fa-comment-medical"></i>
+          <h3>Other Concern</h3>
+          <p className="service-duration">Consultation</p>
+          <p className="service-price">Price upon consultation</p>
+        </div>
+      </div>
+
+      {(selectedService === "Other" || description) && (
+        <div className="form-row">
+          <label><i className="fas fa-comment-medical"></i> Additional Concerns / Description</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Please describe your symptoms, concerns, or any additional information you'd like to share with the dentist..."
+            rows="3"
+          ></textarea>
+        </div>
       )}
+    </div>
+  );
+
+  // Render Time Slots Step
+  const renderTimeSlotStep = () => (
+    <div className="step-content">
+      <button onClick={handleBackToService} className="back-btn">
+        <i className="fas fa-arrow-left"></i> Back to Services
+      </button>
       
-      {/* AI Toggle Button */}
-      <Button onClick={() => setShowAIPanel(!showAIPanel)} sx={{ position: 'fixed', bottom: 20, right: 20, bgcolor: '#00695c', color: 'white', borderRadius: '50%', minWidth: 'auto', width: 56, height: 56, '&:hover': { bgcolor: '#004d40' }, zIndex: 1000 }}>
-        <MedicalServicesIcon />
-      </Button>
+      <div className="selected-info">
+        <p><strong>Selected Date:</strong> {selectedDate}</p>
+        <p><strong>Selected Service:</strong> {selectedService}</p>
+        {description && <p><strong>Notes:</strong> {description.substring(0, 50)}</p>}
+      </div>
+
+      <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span className="text-muted"><i className="fas fa-info-circle"></i> Available time slots</span>
+        <button onClick={fetchAvailableSlots} className="btn-small btn-outline">
+          <i className="fas fa-sync-alt"></i> Refresh
+        </button>
+      </div>
+
+      <div className="schedule-grid">
+        {loading ? (
+          <div className="text-muted" style={{ textAlign: 'center', padding: '20px' }}>
+            <i className="fas fa-spinner fa-pulse"></i> Loading slots...
+          </div>
+        ) : availableSlots.length === 0 ? (
+          <div className="text-muted" style={{ textAlign: 'center', padding: '20px' }}>
+            No slots available for this date
+            <button onClick={joinWaitlist} className="btn-small" style={{ marginLeft: '10px' }}>
+              Join Waitlist
+            </button>
+          </div>
+        ) : (
+          availableSlots.map((slot, idx) => (
+            <div key={idx} className="slot-item">
+              <div>
+                <div className="slot-time"><i className="far fa-clock"></i> {slot.time}</div>
+                <div className={`slot-status ${slot.isBooked ? 'status-booked' : slot.isMyPencil ? 'status-available' : slot.isPenciled ? 'status-booked' : 'status-available'}`}>
+                  {slot.isBooked ? "Booked" : slot.isMyPencil ? "Your pencil (8h reserve)" : slot.isPenciled ? "Pencil-held" : "Available"}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {!slot.isBooked && !slot.isPenciled && (
+                  <>
+                    <button 
+                      className="btn-small btn-outline" 
+                      onClick={() => handlePencilReservation(slot)}
+                    >
+                      <i className="fas fa-pencil-alt"></i> Pencil
+                    </button>
+                    <button 
+                      className="btn-small" 
+                      onClick={() => handleSlotSelect(slot)}
+                      disabled={!selectedService}
+                    >
+                      <i className="fas fa-calendar-plus"></i> Select
+                    </button>
+                  </>
+                )}
+                {slot.isMyPencil && (
+                  <>
+                    <button 
+                      className="btn-small" 
+                      onClick={() => handleSlotSelect(slot)}
+                    >
+                      <i className="fas fa-check-circle"></i> Confirm & Select
+                    </button>
+                    <button 
+                      className="btn-small btn-outline" 
+                      onClick={() => {
+                        const key = `${selectedDate}_${slot.time}`;
+                        setPencilReservations(prev => {
+                          const newPrev = { ...prev };
+                          delete newPrev[key];
+                          return newPrev;
+                        });
+                        showToast(`Released pencil for ${slot.time}`, "info");
+                      }}
+                    >
+                      <i className="fas fa-trash-alt"></i> Release
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="notify-box">
+        <i className="fas fa-hourglass-half"></i> <strong>Pencil booking:</strong> Temporarily reserve a slot (expires after 8 hours)
+      </div>
+    </div>
+  );
+
+  // Render Confirmation Step
+  const renderConfirmationStep = () => (
+    <div className="step-content">
+      <button onClick={handleBackToTime} className="back-btn">
+        <i className="fas fa-arrow-left"></i> Back to Time Slots
+      </button>
       
-      {/* Waitlist Dialog */}
-      <Dialog open={waitlistDialogOpen} onClose={() => setWaitlistDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ bgcolor: '#00695c', color: 'white' }}>Join Waitlist</DialogTitle>
-        <DialogContent>
-          <Typography sx={{ mt: 2, mb: 2 }}>No available slots? Join our waitlist and we'll notify you when a slot opens!</Typography>
-          <FormControl fullWidth>
-            <InputLabel>Urgency Level</InputLabel>
-            <Select value={form.urgencyLevel} onChange={(e) => setForm({ ...form, urgencyLevel: e.target.value })} label="Urgency Level">
-              <MenuItem value={1}>Low - Can wait 2+ weeks</MenuItem>
-              <MenuItem value={2}>Medium - Within 2 weeks</MenuItem>
-              <MenuItem value={3}>High - Emergency/Urgent</MenuItem>
-            </Select>
-          </FormControl>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setWaitlistDialogOpen(false)}>Cancel</Button>
-          <Button onClick={joinWaitlist} variant="contained" sx={{ bgcolor: '#ff9800' }}>Join Waitlist</Button>
-        </DialogActions>
-      </Dialog>
-      
-      {/* Toast notifications */}
-      <Snackbar open={toast.open} autoHideDuration={4000} onClose={() => setToast(prev => ({ ...prev, open: false }))} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
-        <Alert severity={toast.severity} onClose={() => setToast(prev => ({ ...prev, open: false }))}>{toast.message}</Alert>
-      </Snackbar>
-      
-      {/* Loading bar */}
-      {loading && <LinearProgress sx={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 10000 }} />}
-    </Container>
+      <div className="confirmation-card">
+        <h3><i className="fas fa-clipboard-list"></i> Review Your Appointment</h3>
+        
+        <div className="confirmation-details">
+          <div className="detail-row">
+            <span className="detail-label"><i className="fas fa-calendar-day"></i> Date:</span>
+            <span className="detail-value">{bookingData?.date}</span>
+          </div>
+          <div className="detail-row">
+            <span className="detail-label"><i className="fas fa-clock"></i> Time:</span>
+            <span className="detail-value">{bookingData?.time}</span>
+          </div>
+          <div className="detail-row">
+            <span className="detail-label"><i className="fas fa-stethoscope"></i> Service:</span>
+            <span className="detail-value">{bookingData?.service}</span>
+          </div>
+          <div className="detail-row">
+            <span className="detail-label"><i className="fas fa-tag"></i> Price:</span>
+            <span className="detail-value price">{bookingData?.price}</span>
+          </div>
+          {description && (
+            <div className="detail-row">
+              <span className="detail-label"><i className="fas fa-comment"></i> Notes:</span>
+              <span className="detail-value">{description}</span>
+            </div>
+          )}
+        </div>
+        
+        <div className="notify-box" style={{ marginTop: '20px' }}>
+          <i className="fas fa-info-circle"></i> Your appointment request will be sent to admin for confirmation. 
+          You'll receive a notification once confirmed.
+        </div>
+        
+        <button 
+          className="confirm-btn" 
+          onClick={handleConfirmBooking} 
+          disabled={loading || myAppointment}
+        >
+          {loading ? "Processing..." : "Confirm & Book Appointment"}
+        </button>
+        
+        {myAppointment && (
+          <p className="warning-text">
+            <i className="fas fa-exclamation-triangle"></i> You already have an active appointment. Please cancel it first.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="appointment-scheduler">
+      <div className="scheduler-bg-animation">
+        <div className="scheduler-bg-circle scheduler-bg-circle-1"></div>
+        <div className="scheduler-bg-circle scheduler-bg-circle-2"></div>
+        <div className="scheduler-bg-circle scheduler-bg-circle-3"></div>
+        <div className="scheduler-bg-circle scheduler-bg-circle-4"></div>
+        <div className="scheduler-bg-circle scheduler-bg-circle-5"></div>
+        <div className="scheduler-bg-circle scheduler-bg-circle-6"></div>
+      </div>
+      <div className="scheduler-particles" id="particles"></div>
+
+      <div className="scheduler-container">
+        <div className="scheduler-header">
+          <h1><i className="fas fa-calendar-check"></i> Book Appointment Now</h1>
+          <div className="scheduler-badge"><i className="fas fa-bell"></i> Real-time notifications active</div>
+        </div>
+
+        {renderStepIndicator()}
+
+        <div className="scheduler-grid">
+          {/* LEFT COLUMN - Booking Steps */}
+          <div className="scheduler-card">
+            <div className="scheduler-card-header">
+              <h2>
+                <i className="fas fa-calendar-alt"></i> 
+                {step === 1 && "Step 1: Select Date"}
+                {step === 2 && "Step 2: Choose Service"}
+                {step === 3 && "Step 3: Pick Time Slot"}
+                {step === 4 && "Step 4: Review & Confirm"}
+              </h2>
+            </div>
+            <div className="scheduler-card-body">
+              {step === 1 && renderCalendarStep()}
+              {step === 2 && renderServiceStep()}
+              {step === 3 && renderTimeSlotStep()}
+              {step === 4 && renderConfirmationStep()}
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN - My Appointments & Waiting List */}
+          <div className="scheduler-card">
+            <div className="scheduler-card-header">
+              <h2><i className="fas fa-user-md"></i> My Appointment & Waiting List</h2>
+            </div>
+            <div className="scheduler-card-body">
+              <div id="activeAppointmentArea">
+                {myAppointment ? (
+                  <div className="appt-card">
+                    <div className="flex-between">
+                      <div>
+                        <strong><i className="fas fa-calendar-day"></i> {myAppointment.date} · {myAppointment.formatted_time || myAppointment.time}</strong>
+                        <br />
+                        <span className="text-muted">
+                          {myAppointment.service || myAppointment.other_concern} {getProcedurePrice(myAppointment.service || myAppointment.other_concern)}
+                        </span>
+                        <br />
+                        <span 
+                          className="status-badge"
+                          style={{ backgroundColor: getStatusColor(myAppointment.status), color: 'white' }}
+                        >
+                          {getStatusLabel(myAppointment.status)}
+                        </span>
+                        {myAppointment.description && (
+                          <div><small><i className="fas fa-comment"></i> {myAppointment.description}</small></div>
+                        )}
+                      </div>
+                      <div>
+                        {myAppointment.status === "pending" && (
+                          <button onClick={cancelAppointment} className="btn-small danger-btn">
+                            <i className="fas fa-ban"></i> Cancel
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-muted mt-3">
+                      <i className="fas fa-clock"></i> 8-hour cancellation policy applies
+                    </div>
+                  </div>
+                ) : (
+                  <div className="appt-card">
+                    <div className="flex-between">
+                      <span><i className="fas fa-calendar-times"></i> No active appointment</span>
+                      <span className="text-muted">Book a slot above</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <hr />
+
+              <div className="flex-between">
+                <strong><i className="fas fa-list-ul"></i> Waiting List</strong>
+                <button onClick={joinWaitlist} className="btn-small btn-outline" disabled={!selectedDate || !selectedService}>
+                  <i className="fas fa-plus-circle"></i> Join waiting list
+                </button>
+              </div>
+              <div style={{ marginTop: '12px' }}>
+                {waitlistEntries.length === 0 ? (
+                  <div className="notify-box" style={{ marginTop: 0 }}>
+                    <span className="text-muted"><i className="fas fa-hourglass"></i> Not on waiting list. Join to get notified when slots open.</span>
+                  </div>
+                ) : (
+                  waitlistEntries.map(entry => (
+                    <div key={entry.id} className="waiting-item">
+                      <div className="waiting-info">
+                        <strong><i className="fas fa-hourglass-half"></i> Waiting for {entry.preferred_date || entry.targetDate}</strong>
+                        <div className="text-muted">{entry.service_needed || entry.service}</div>
+                        {entry.description && <small><i className="fas fa-comment"></i> {entry.description.substring(0, 50)}</small>}
+                        <div className="text-muted" style={{ fontSize: '0.7rem', marginTop: '4px' }}>
+                          Position: #{entry.position || '?'} in queue
+                        </div>
+                      </div>
+                      <button onClick={() => cancelWaitlist(entry.id)} className="btn-small cancel-waiting-btn">
+                        <i className="fas fa-times-circle"></i> Cancel
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <hr />
+
+              <div>
+                <strong><i className="fas fa-bell"></i> Live Notifications</strong>
+                <div className="notification-panel">
+                  {notifications.length === 0 ? (
+                    <div className="text-muted">✅ Email confirmations & reminders will appear here</div>
+                  ) : (
+                    notifications.slice(0, 5).map(notif => (
+                      <div key={notif.id} className="notification-item">
+                        <i className={`fas ${notif.notification_type === 'appointment_confirmation' ? 'fa-check-circle' : notif.notification_type === 'appointment_reminder' ? 'fa-clock' : 'fa-bell'}`}></i>
+                        <div>
+                          <strong>{notif.title}</strong>
+                          <div className="text-muted">{notif.message}</div>
+                          <small>{new Date(notif.created_at).toLocaleString()}</small>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {toast && (
+        <div className={`toast-msg toast-${toast.type}`}>
+          {toast.message}
+        </div>
+      )}
+    </div>
   );
 }

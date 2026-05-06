@@ -38,7 +38,7 @@ export default function ExternalNavbar({ content }) {
   }
 
   const navItems = [
-    { name: "About", path: "/about" },
+    { name: "About", path: "/aboutpage" },
     { name: "Contact", path: "/contact" },
   ];
 
@@ -106,7 +106,7 @@ export default function ExternalNavbar({ content }) {
               <Box sx={{ display: "flex", gap: { xs: 0.5, sm: 1 }, ml: { xs: 0, sm: 2 } }}>
                 <Button
                   component={Link}
-                  to="/login"
+                  to="/"
                   className="btn-login"
                   sx={{
                     color: "#1a5f5d",

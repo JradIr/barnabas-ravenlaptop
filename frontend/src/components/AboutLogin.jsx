@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Container, Grid, Button, Box } from "@mui/material";
 import "./style/About.css";
 
-export default function About() {
+export default function AboutLogin() {
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   useEffect(() => {
