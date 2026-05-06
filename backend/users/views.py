@@ -71,6 +71,37 @@ class LoginViewset(viewsets.ViewSet):
         else:
             return Response(serializer.errors, status=400)
 
+class ReceptionistLoginViewset(viewsets.ViewSet):
+    permission_classes = [permissions.AllowAny]
+    serializer_class = LoginSerializer
+    
+    def create(self, request):
+        serializer = self.serializer_class(data=request.data)
+        if serializer.is_valid():
+            email = serializer.validated_data['email']
+            password = serializer.validated_data['password']
+            user = authenticate(request, email=email, password=password)
+
+            # Only allow staff (receptionists) who are NOT superusers
+            if user and user.is_staff and not user.is_superuser:
+                _, token = AuthToken.objects.create(user)
+                return Response(
+                    {
+                        'user': {
+                            'id': user.id, 
+                            'email': user.email, 
+                            'username': user.username,
+                            'is_superuser': user.is_superuser,
+                            'is_staff': user.is_staff,
+                            'role': user.role
+                        },
+                        'token': token
+                    }
+                )
+            else:
+                return Response({'error': 'Invalid credentials or receptionist access required'}, status=401)
+        else:
+            return Response(serializer.errors, status=400)
 
 class AdminLoginViewset(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
@@ -83,7 +114,7 @@ class AdminLoginViewset(viewsets.ViewSet):
             password = serializer.validated_data['password']
             user = authenticate(request, email=email, password=password)
 
-            if user and user.is_superuser:
+            if user and (user.is_superuser or (user.is_staff and not user.is_superuser)):
                 _, token = AuthToken.objects.create(user)
                 return Response(
                     {
@@ -105,7 +136,6 @@ class UserViewset(viewsets.ViewSet, AuditLogMixin):
     def list(self, request):
         queryset = User.objects.all()
         serializer = self.serializer_class(queryset, many=True)
-        # Log view action for admins
         if request.user.is_superuser or request.user.is_staff:
             self.log_admin_action(request, 'view', 'User', None, {'action': 'list_users'})
         return Response(serializer.data)
@@ -131,6 +161,30 @@ class UserViewset(viewsets.ViewSet, AuditLogMixin):
                 self.log_update(request, user, old_data, 'User')
             return Response(serializer.data)
         return Response(serializer.errors, status=400)
+    
+    def partial_update(self, request, pk=None):
+        """Handle PATCH requests"""
+        return self.update(request, pk)
+    
+    def destroy(self, request, pk=None):
+        """Delete a user"""
+        try:
+            user = User.objects.get(id=pk)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+        
+        # Prevent deleting superusers
+        if user.is_superuser:
+            return Response({'error': 'Cannot delete superuser account'}, status=400)
+        
+        username = user.username
+        user.delete()
+        
+        if request.user.is_superuser or request.user.is_staff:
+            self.log_admin_action(request, 'delete', 'User', pk, {'deleted_user': username})
+        
+        return Response({'message': f'User {username} deleted successfully'})
+    
 
 
 class PatientRecordViewSet(viewsets.ModelViewSet):

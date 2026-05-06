@@ -24,7 +24,7 @@ import './style/AdminNavbar.css';
 const drawerWidth = 240;
 const collapsedDrawerWidth = 68;
 
-export default function AdminNavbar({ content }) {
+export default function RecepNavbar({ content }) {
   const location = useLocation();
   const path = location.pathname;
   const navigate = useNavigate();
@@ -78,14 +78,7 @@ export default function AdminNavbar({ content }) {
   };
 
   const navItems = [
-    { name: 'Dashboard', path: '/admin/dashboard', icon: <DashboardIcon /> },
-    { name: 'Appointments', path: '/admin/appointments', icon: <CalendarMonthIcon /> },
-    { name: 'Patients', path: '/admin/patients', icon: <PeopleIcon /> },
-    { name: 'Billing', path: '/admin/billing', icon: <AssignmentIcon /> },
-    { name: 'Payments', path: '/admin/payments', icon: <PaymentIcon /> },
-    { name: 'Reports', path: '/admin/reports', icon: <BarChartIcon /> },
-    { name: 'Audit', path: '/admin/audit', icon: <SettingsIcon /> },
-    { name: 'Manage', path: '/admin/manage', icon: <SettingsIcon /> },
+    { name: 'Dashboard', path: '/recep/dashboard', icon: <DashboardIcon /> },
   ];
 
   const drawer = (

@@ -8,13 +8,16 @@ import {
   Chip, Paper, Divider, IconButton, Grid, Container, useMediaQuery, useTheme,
   Fade, Slide, FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle,
   DialogContent, DialogActions, Tabs, Tab, Card, CardContent, Stepper,
-  Step, StepLabel
+  Step, StepLabel, Badge, List, ListItem, ListItemText, ListItemIcon,
+  Accordion, AccordionSummary, AccordionDetails
 } from "@mui/material";
 import {
   AccessTime as AccessTimeIcon, Cancel as CancelIcon,
   ArrowBack as ArrowBackIcon, ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
   MedicalServices as MedicalServicesIcon, Close as CloseIcon,
-  Queue as QueueIcon
+  Queue as QueueIcon, CheckCircle as CheckCircleIcon, Pending as PendingIcon,
+  Notifications as NotificationsIcon, ExpandMore as ExpandMoreIcon,
+  EventNote as EventNoteIcon, Warning as WarningIcon
 } from "@mui/icons-material";
 
 // Constants
@@ -35,16 +38,6 @@ const OTHER_CONCERNS = [
 
 const fmtTime = (h, m) => `${h > 12 ? h - 12 : h === 0 ? 12 : h}:${m.toString().padStart(2,'0')} ${h < 12 ? "AM" : "PM"}`;
 
-const generateTimeSlots = () => {
-  const slots = [];
-  for (let hour = CLINIC_OPEN; hour < CLINIC_CLOSE; hour++) {
-    if (hour >= LUNCH_START && hour < LUNCH_END) continue;
-    slots.push({ hour, minute: 0, time: fmtTime(hour, 0), timeValue: `${hour.toString().padStart(2,'0')}:00` });
-    slots.push({ hour, minute: 30, time: fmtTime(hour, 30), timeValue: `${hour.toString().padStart(2,'0')}:30` });
-  }
-  return slots;
-};
-
 export default function AppointmentScheduler({ role = "client" }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -52,6 +45,7 @@ export default function AppointmentScheduler({ role = "client" }) {
   const [appointments, setAppointments] = useState([]);
   const [myAppointments, setMyAppointments] = useState([]);
   const [waitlistEntries, setWaitlistEntries] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [aiSuggestions, setAiSuggestions] = useState([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
@@ -59,6 +53,7 @@ export default function AppointmentScheduler({ role = "client" }) {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(null);
   const [activeStep, setActiveStep] = useState(0);
   const [tabValue, setTabValue] = useState(0);
+  const [notifTabValue, setNotifTabValue] = useState(0);
   const [loading, setLoading] = useState(false);
   const [waitlistDialogOpen, setWaitlistDialogOpen] = useState(false);
   const [showAIPanel, setShowAIPanel] = useState(false);
@@ -68,11 +63,12 @@ export default function AppointmentScheduler({ role = "client" }) {
   const fetchData = useCallback(async () => {
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
-      const [appointmentsRes, myAppointmentsRes, aiRes, waitlistRes] = await Promise.all([
+      const [appointmentsRes, myAppointmentsRes, aiRes, waitlistRes, notificationsRes] = await Promise.all([
         AxiosInstance.get("appointments/"),
         AxiosInstance.get("appointments/", { params: { user_id: user?.id } }),
         AxiosInstance.get("appointments/ai_suggestions/"),
-        AxiosInstance.get("appointments/waitlist_status/")
+        AxiosInstance.get("appointments/waitlist_status/"),
+        AxiosInstance.get("notifications/")
       ]);
       
       setAppointments(Array.isArray(appointmentsRes.data) ? appointmentsRes.data : []);
@@ -80,16 +76,21 @@ export default function AppointmentScheduler({ role = "client" }) {
       setAiSuggestions(aiRes.data?.suggestions || []);
       const waitlistData = waitlistRes.data?.waitlists || waitlistRes.data?.waitlist_entries || [];
       setWaitlistEntries(waitlistData);
+      setNotifications(Array.isArray(notificationsRes.data?.notifications) ? notificationsRes.data.notifications : []);
     } catch (err) {
       console.error("Fetch error:", err);
       setAppointments([]);
       setMyAppointments([]);
       setWaitlistEntries([]);
+      setNotifications([]);
     }
   }, []);
 
   useEffect(() => {
     fetchData();
+    // Refresh data every 30 seconds for real-time updates
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
   }, [fetchData]);
 
   const showToast = (message, severity = "success") => {
@@ -178,6 +179,15 @@ export default function AppointmentScheduler({ role = "client" }) {
     return labels[status] || status;
   };
 
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case 'appointment_confirmation': return <CheckCircleIcon sx={{ color: '#4caf50' }} />;
+      case 'appointment_cancellation': return <CancelIcon sx={{ color: '#f44336' }} />;
+      case 'appointment_reminder': return <AccessTimeIcon sx={{ color: '#ff9800' }} />;
+      default: return <NotificationsIcon sx={{ color: '#00695c' }} />;
+    }
+  };
+
   const handleDateSelect = (day, month, year) => {
     if (isPastDate(year, month, day)) {
       showToast("Cannot book past dates", "warning");
@@ -201,16 +211,27 @@ export default function AppointmentScheduler({ role = "client" }) {
     for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
     
     const getDayStatus = (day) => {
-      const bookedCount = appointments.filter(a => {
+      // Count ONLY confirmed appointments for availability
+      const confirmedCount = appointments.filter(a => {
         if (!a?.date) return false;
         const d = new Date(a.date);
         return d.getDate() === day && d.getMonth() === month && d.getFullYear() === year && 
-              !["cancelled", "completed"].includes(a.status);
+              a.status === 'confirmed';
       }).length;
+      
+      const pendingCount = appointments.filter(a => {
+        if (!a?.date) return false;
+        const d = new Date(a.date);
+        return d.getDate() === day && d.getMonth() === month && d.getFullYear() === year && 
+              a.status === 'pending';
+      }).length;
+      
       return { 
-        bookedCount, 
-        isFullyBooked: bookedCount >= TOTAL_SLOTS_PER_DAY, 
-        isPartiallyBooked: bookedCount > 0 && bookedCount < TOTAL_SLOTS_PER_DAY 
+        confirmedCount,
+        pendingCount,
+        isFullyBooked: confirmedCount >= TOTAL_SLOTS_PER_DAY, 
+        isPartiallyBooked: confirmedCount > 0 && confirmedCount < TOTAL_SLOTS_PER_DAY,
+        hasPending: pendingCount > 0
       };
     };
 
@@ -239,7 +260,7 @@ export default function AppointmentScheduler({ role = "client" }) {
                 if (!day) return <Box key={i} sx={{ p: 2 }} />;
                 const isPast = isPastDate(year, month, day);
                 const isSun = isSunday(year, month, day);
-                const { isFullyBooked, isPartiallyBooked, bookedCount } = getDayStatus(day);
+                const { confirmedCount, pendingCount, isFullyBooked, isPartiallyBooked, hasPending } = getDayStatus(day);
                 const statusColor = isFullyBooked ? '#f44336' : isPartiallyBooked ? '#ff9800' : '#4caf50';
                 
                 return (
@@ -257,15 +278,25 @@ export default function AppointmentScheduler({ role = "client" }) {
                       transition: 'all 0.3s', 
                       minHeight: { xs: '70px', md: '100px' },
                       border: '1px solid #c8e6c9',
+                      position: 'relative',
                       '&:hover': !isPast && !isSun && !isFullyBooked ? { transform: 'translateY(-4px)', boxShadow: 3, bgcolor: '#c8e6c9' } : {}
                     }}>
                     <Typography fontWeight="bold" fontSize={{ xs: '14px', md: '16px' }}>{day}</Typography>
                     {!isPast && !isSun && (
-                      <Chip 
-                        label={isFullyBooked ? "FULL" : `${bookedCount}/${TOTAL_SLOTS_PER_DAY}`} 
-                        size="small" 
-                        sx={{ mt: 1, bgcolor: statusColor, color: 'white', fontSize: '10px', height: '20px' }} 
-                      />
+                      <>
+                        <Chip 
+                          label={isFullyBooked ? "FULL" : `${confirmedCount}/${TOTAL_SLOTS_PER_DAY}`} 
+                          size="small" 
+                          sx={{ mt: 1, bgcolor: statusColor, color: 'white', fontSize: '10px', height: '20px' }} 
+                        />
+                        {hasPending && !isFullyBooked && (
+                          <Badge 
+                            badgeContent={`${pendingCount} pending`} 
+                            color="warning"
+                            sx={{ position: 'absolute', top: -8, right: -8 }}
+                          />
+                        )}
+                      </>
                     )}
                     {isSun && <Typography fontSize="10px" color="error" sx={{ mt: 0.5 }}>CLOSED</Typography>}
                   </Paper>
@@ -505,43 +536,160 @@ export default function AppointmentScheduler({ role = "client" }) {
     );
   };
 
-  const renderMyAppointments = () => {
+  const renderSidebar = () => {
     const upcoming = myAppointments.filter(a => a && !["completed", "cancelled"].includes(a.status));
     const history = myAppointments.filter(a => a && ["completed", "cancelled"].includes(a.status));
     const displayList = tabValue === 0 ? upcoming : history;
+    
+    const unreadNotifications = notifications.filter(n => !n.is_read);
+    const readNotifications = notifications.filter(n => n.is_read);
 
     return (
-      <Paper elevation={3} sx={{ p: 2, borderRadius: 4, position: { lg: 'sticky' }, top: 20, bgcolor: 'rgba(255,255,255,0.95)' }}>
+      <Paper elevation={3} sx={{ p: 2, borderRadius: 4, position: { lg: 'sticky' }, top: 20 }}>
+        {/* My Appointments Section */}
+        <Typography variant="h6" fontWeight="bold" sx={{ color: '#00695c', mb: 2 }}>
+          My Appointments
+        </Typography>
         <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} sx={{ mb: 2 }}>
-          <Tab label="Upcoming" /><Tab label="History" />
+          <Tab label={`Upcoming (${upcoming.length})`} />
+          <Tab label={`History (${history.length})`} />
         </Tabs>
         
-        {displayList.map(app => (
-          <Paper key={app.id} variant="outlined" sx={{ p: 1.5, mb: 1, borderRadius: 2 }}>
-            <Box display="flex" justifyContent="space-between" alignItems="start">
-              <Box flex={1}>
-                <Typography variant="body2" fontWeight="bold">{new Date(app.date).toLocaleDateString()}</Typography>
-                <Typography variant="caption" color="text.secondary" display="block">{app.formatted_time || app.time}</Typography>
-                <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>{app.service || app.other_concern}</Typography>
-                <Chip 
-                  label={getStatusLabel(app.status)} 
-                  size="small" 
-                  sx={{ mt: 0.5, bgcolor: getStatusColor(app.status), color: 'white', fontSize: '10px', height: '20px' }} 
-                />
-              </Box>
-              {app.status === "pending" && (
-                <IconButton size="small" onClick={() => cancelAppointment(app.id)} sx={{ color: '#f44336' }}>
-                  <CancelIcon fontSize="small" />
-                </IconButton>
-              )}
-            </Box>
-          </Paper>
-        ))}
-        {displayList.length === 0 && (
+        {displayList.length === 0 ? (
           <Box textAlign="center" py={3}>
+            <EventNoteIcon sx={{ fontSize: 48, color: '#bdbdbd', mb: 1 }} />
             <Typography color="text.secondary">No appointments</Typography>
           </Box>
+        ) : (
+          displayList.map(app => (
+            <Paper key={app.id} variant="outlined" sx={{ p: 1.5, mb: 1, borderRadius: 2 }}>
+              <Box display="flex" justifyContent="space-between" alignItems="start">
+                <Box flex={1}>
+                  <Typography variant="body2" fontWeight="bold">
+                    {new Date(app.date).toLocaleDateString()}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    {app.formatted_time || app.time}
+                  </Typography>
+                  <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
+                    {app.service || app.other_concern}
+                  </Typography>
+                  <Chip 
+                    label={getStatusLabel(app.status)} 
+                    size="small" 
+                    sx={{ mt: 0.5, bgcolor: getStatusColor(app.status), color: 'white', fontSize: '10px', height: '20px' }} 
+                  />
+                </Box>
+                {app.status === "pending" && (
+                  <IconButton size="small" onClick={() => cancelAppointment(app.id)} sx={{ color: '#f44336' }}>
+                    <CancelIcon fontSize="small" />
+                  </IconButton>
+                )}
+              </Box>
+            </Paper>
+          ))
         )}
+        
+        <Divider sx={{ my: 2 }} />
+        
+        {/* Notifications Section */}
+        <Typography variant="h6" fontWeight="bold" sx={{ color: '#00695c', mb: 2 }}>
+          Notifications
+          {unreadNotifications.length > 0 && (
+            <Badge badgeContent={unreadNotifications.length} color="error" sx={{ ml: 1 }} />
+          )}
+        </Typography>
+        
+        <Tabs value={notifTabValue} onChange={(e, v) => setNotifTabValue(v)} sx={{ mb: 2 }} size="small">
+          <Tab label={`Unread (${unreadNotifications.length})`} />
+          <Tab label={`All (${notifications.length})`} />
+        </Tabs>
+        
+        {notifications.length === 0 ? (
+          <Box textAlign="center" py={3}>
+            <NotificationsIcon sx={{ fontSize: 48, color: '#bdbdbd', mb: 1 }} />
+            <Typography color="text.secondary">No notifications</Typography>
+          </Box>
+        ) : (
+          (notifTabValue === 0 ? unreadNotifications : notifications).slice(0, 5).map(notif => (
+            <Paper key={notif.id} sx={{ p: 1.5, mb: 1, borderRadius: 2, bgcolor: notif.is_read ? 'white' : '#e3f2fd' }}>
+              <Box display="flex" alignItems="center" gap={1}>
+                {getNotificationIcon(notif.notification_type)}
+                <Box flex={1}>
+                  <Typography variant="body2" fontWeight={notif.is_read ? 'normal' : 'bold'}>
+                    {notif.title}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    {notif.message}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" fontSize="10px">
+                    {new Date(notif.created_at).toLocaleString()}
+                  </Typography>
+                </Box>
+              </Box>
+            </Paper>
+          ))
+        )}
+        
+        {notifications.length > 0 && notifTabValue === 0 && unreadNotifications.length > 5 && (
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', textAlign: 'center' }}>
+            +{unreadNotifications.length - 5} more unread
+          </Typography>
+        )}
+        
+        <Divider sx={{ my: 2 }} />
+        
+        {/* Waiting List Section */}
+        <Typography variant="h6" fontWeight="bold" sx={{ color: '#00695c', mb: 2 }}>
+          Waiting List Status
+          {waitlistEntries.filter(w => w.status === 'active').length > 0 && (
+            <Badge badgeContent={waitlistEntries.filter(w => w.status === 'active').length} color="warning" sx={{ ml: 1 }} />
+          )}
+        </Typography>
+        
+        {waitlistEntries.length === 0 ? (
+          <Box textAlign="center" py={3}>
+            <QueueIcon sx={{ fontSize: 48, color: '#bdbdbd', mb: 1 }} />
+            <Typography color="text.secondary">Not on any waitlist</Typography>
+            <Button size="small" variant="outlined" onClick={() => setWaitlistDialogOpen(true)} sx={{ mt: 1 }}>
+              Join Waitlist
+            </Button>
+          </Box>
+        ) : (
+          waitlistEntries.map(entry => (
+            <Paper key={entry.id} variant="outlined" sx={{ p: 1.5, mb: 1, borderRadius: 2 }}>
+              <Box display="flex" alignItems="center" gap={1}>
+                <WarningIcon sx={{ color: entry.urgency_level === 3 ? '#f44336' : entry.urgency_level === 2 ? '#ff9800' : '#4caf50' }} />
+                <Box flex={1}>
+                  <Typography variant="body2" fontWeight="bold">
+                    {entry.service_needed || 'Dental Service'}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    Preferred: {new Date(entry.preferred_date).toLocaleDateString()}
+                  </Typography>
+                  <Typography variant="caption" display="block">
+                    Position: #{entry.position || '?'} in queue
+                  </Typography>
+                  <Chip 
+                    label={`Urgency: ${entry.urgency_level === 3 ? 'High' : entry.urgency_level === 2 ? 'Medium' : 'Low'}`}
+                    size="small"
+                    sx={{ mt: 0.5, fontSize: '10px', height: '20px' }}
+                  />
+                </Box>
+              </Box>
+            </Paper>
+          ))
+        )}
+        
+        <Button 
+          fullWidth 
+          variant="outlined" 
+          size="small" 
+          onClick={() => setWaitlistDialogOpen(true)}
+          sx={{ mt: 1, borderColor: '#ff9800', color: '#ff9800' }}
+        >
+          Join Another Waitlist
+        </Button>
       </Paper>
     );
   };
@@ -589,7 +737,11 @@ export default function AppointmentScheduler({ role = "client" }) {
           {activeStep === 2 && renderTimeSlots()}
           {activeStep === 3 && renderConfirmation()}
         </Grid>
-        {activeStep === 0 && <Grid item xs={12} lg={4}>{renderMyAppointments()}</Grid>}
+        {activeStep === 0 && (
+          <Grid item xs={12} lg={4}>
+            {renderSidebar()}
+          </Grid>
+        )}
       </Grid>
       
       {/* AI Panel */}

@@ -30,10 +30,17 @@ class PatientRecordSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id', 'created_at', 'updated_at']
 
+class UserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'role', 'is_active', 'is_staff', 'firstname', 'lastname', 'phone_number']
+        read_only_fields = ['id', 'username', 'email']
+
 
 class AppointmentSerializer(serializers.ModelSerializer):
     user_username = serializers.ReadOnlyField(source='user.username')
     user_email = serializers.ReadOnlyField(source='user.email')
+    user_id = serializers.ReadOnlyField(source='user.id')
     formatted_date = serializers.SerializerMethodField()
     formatted_time = serializers.SerializerMethodField()
     time_until_expiry = serializers.SerializerMethodField()
@@ -209,8 +216,13 @@ class LoginSerializer(serializers.Serializer):
 class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'password')
-        extra_kwargs = {'password': {'write_only':True}}
+        fields = ('id', 'username', 'email', 'password', 'role', 'is_staff', 'is_active')
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'role': {'required': False, 'default': 'patient'},
+            'is_staff': {'required': False, 'default': False},
+            'is_active': {'required': False, 'default': True},
+        }
 
     def create(self, validated_data):
         user = User.objects.create_user(**validated_data)

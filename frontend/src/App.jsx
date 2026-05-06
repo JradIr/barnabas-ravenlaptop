@@ -7,6 +7,7 @@ import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import AdminFooter from './components/AdminFooter'
 import AdminNavbar from './components/AdminNavbar'
+import RecepNavbar from './components/RecepNavbar'
 import About from './components/About'
 import Services from './components/Services'
 import Profile from './components/Profile'
@@ -21,7 +22,10 @@ import AdminDashboard from './components/AdminDashboard'
 import AdminAppointments from './components/AdminAppointments'
 import AdminPatients from './components/AdminPatients'
 import AdminAuditLog from './components/AdminAuditLog'
+import AdminManage from './components/AdminManage'
 import AppointmentScheduler from './components/AppointmentScheduler'
+import MyAppointmentsPage from './components/MyAppointmentsPage'
+import ReceptionistDashboard from './components/ReceptionistDashboard'
 import ExternalNavbar from './components/ExternalNavbar'
 
 function App() {
@@ -41,7 +45,14 @@ function App() {
                       location.pathname.startsWith('/admin/patients') ||
                       location.pathname.startsWith('/admin/reports') ||
                       location.pathname.startsWith('/admin/audit') ||
+                      location.pathname.startsWith('/admin/manage') ||
                       location.pathname.startsWith('/admin/appointments');
+  
+  const recepNavbar = location.pathname.startsWith('/recep/dashboard') ||
+                      location.pathname.startsWith('/recep/billing') ||
+                      location.pathname.startsWith('/recep/payments') ||
+                      location.pathname.startsWith('/recep/patients') ||
+                      location.pathname.startsWith('/recep/appointments');
 
   return (
     <>
@@ -60,6 +71,17 @@ function App() {
             </>
           }
         />
+      ) : recepNavbar ? (
+        <RecepNavbar
+          content={
+            <>
+              <Routes>
+                <Route path="/recep/dashboard" element={<ReceptionistDashboard />} />
+              </Routes>
+              <AdminFooter/>
+            </>
+          }
+        />
       ) : adminNavbar ? (
         <AdminNavbar
           content={
@@ -69,6 +91,7 @@ function App() {
                 <Route path="/admin/appointments" element={<AdminAppointments />} />
                 <Route path="/admin/patients" element={<AdminPatients />} />
                 <Route path="/admin/audit" element={<AdminAuditLog />} />
+                <Route path="/admin/manage" element={<AdminManage />} />
               </Routes>
               <AdminFooter/>
             </>
@@ -85,7 +108,7 @@ function App() {
                   <Route path="about/" element={<About />} />
                   <Route path="services/" element={<Services />} />
                   <Route path='calendar/' element={<AppointmentScheduler/>} />
-                  <Route path="appointment/" element={<AppointmentForm />} />
+                  <Route path="appointments/" element={<MyAppointmentsPage />} />
                 </Route>
               </Routes>
               <Footer/>

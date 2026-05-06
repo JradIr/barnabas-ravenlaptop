@@ -26,19 +26,34 @@ const AdminLogin = () => {
         setLoading(true)
         setShowMessage(false)
         
+        // Try admin login first
         AxiosInstance.post(`admin-login/`, {
             email: data.email,
             password: data.password,
         })
         .then((response) => {
-            if(response.data.user && response.data.user.is_superuser) {
-                localStorage.setItem('Token', response.data.token)
+            const user = response.data.user
+            
+            if(user.is_superuser === true) {
+                localStorage.setItem('token', response.data.token)
+                localStorage.setItem('user', JSON.stringify(user))
                 navigate('/admin/dashboard')
             } else {
-                setShowMessage(true)
-                setErrorMessage('Access denied. Admin privileges required.')
-                setLoading(false)
-                setTimeout(() => setShowMessage(false), 3000)
+                // If not superuser, try receptionist login
+                return AxiosInstance.post(`receptionist-login/`, {
+                    email: data.email,
+                    password: data.password,
+                })
+            }
+        })
+        .then((response) => {
+            if (response) {
+                const user = response.data.user
+                if(user.is_staff === true && user.is_superuser !== true) {
+                    localStorage.setItem('token', response.data.token)
+                    localStorage.setItem('user', JSON.stringify(user))
+                    navigate('/recep/dashboard')
+                }
             }
         })
         .catch((error) => {
@@ -46,7 +61,7 @@ const AdminLogin = () => {
             setErrorMessage('Invalid email or password. Please try again.')
             setLoading(false)
             setTimeout(() => setShowMessage(false), 3000)
-            console.error('Admin login failed:', error)
+            console.error('Login failed:', error)
         })
     }
     
@@ -88,11 +103,11 @@ const AdminLogin = () => {
                             </div>
                             
                             <Typography className="admin-brand-title">
-                                Admin Portal
+                                Staff Portal
                             </Typography>
                             
                             <Typography className="admin-brand-tagline">
-                                Secure administrative access with enhanced security protocols.
+                                Secure access for administrators and receptionists.
                             </Typography>
                             
                             <div className="admin-brand-features">
@@ -124,7 +139,7 @@ const AdminLogin = () => {
                     <div className="admin-form-side">
                         <div className="admin-form-container">
                             <Typography className="admin-form-title">
-                                Administrator Login
+                                Staff Login
                             </Typography>
                             
                             <Typography className="admin-form-subtitle">
@@ -134,7 +149,7 @@ const AdminLogin = () => {
                             {/* Error Message - Centered at top */}
                             {showMessage && (
                                 <div className="admin-error-message-wrapper">
-                                    <Message text={errorMessage || 'Admin login failed'} color={'#f8f9fa'} />
+                                    <Message text={errorMessage || 'Login failed'} color={'#f8f9fa'} />
                                     <div className="admin-error-progress"></div>
                                 </div>
                             )}
@@ -169,7 +184,7 @@ const AdminLogin = () => {
                                 </div>
 
                                 <MyButton 
-                                    label={loading ? 'Authenticating...' : 'Admin Login'}
+                                    label={loading ? 'Authenticating...' : 'Staff Login'}
                                     type={'submit'}
                                     disabled={loading}
                                     className={`admin-login-button ${loading ? 'loading' : ''}`}

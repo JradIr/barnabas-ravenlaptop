@@ -63,6 +63,7 @@ export default function Navbar({ content }) {
     { name: "About", path: "/about" },
     { name: "Services", path: "/services" },
     { name: "Calendar", path: "/calendar" },
+    { name: "Appointments", path: "/appointments" },
   ];
 
   // Helper to check if path is active
